@@ -1,0 +1,10 @@
+cc_binary(
+    name = "db", 
+    srcs = [
+        "main.cc",
+        "node.hh",
+    ], 
+    copts = [
+        "-fcoroutines",
+    ],
+)
