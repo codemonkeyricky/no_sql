@@ -3,8 +3,35 @@ cc_binary(
     srcs = [
         "main.cc",
         "node.hh",
+        "directory.hh",
     ], 
     copts = [
         "-fcoroutines",
+    ],
+)
+
+cc_binary(
+    name = "fuse", 
+    srcs = [
+        "fuse.c",
+    ], 
+    copts = [
+        "-D_FILE_OFFSET_BITS=64",
+    ],
+    linkopts = [
+        "-lfuse",
+    ],
+)
+
+cc_binary(
+    name = "echo", 
+    srcs = [
+        "echo_server.cc",
+    ], 
+    copts = [
+        "-std=c++20",
+    ],
+    linkopts = [
+        # "-lfuse",
     ],
 )
