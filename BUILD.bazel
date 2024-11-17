@@ -1,4 +1,4 @@
-cc_binary(
+cc_test(
     name = "db", 
     srcs = [
         "main.cc",
