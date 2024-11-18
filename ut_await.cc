@@ -27,11 +27,10 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
         std::size_t n = co_await socket.async_read_some(
             boost::asio::buffer(payload), boost::asio::use_awaitable);
 
-        string cmd(payload, 1);
+        string pl = string(payload, n);
+        auto p = pl.find(":");
 
-        // auto cmd = s.substr(0, p);
-        // auto payload = s.substr(p);
-
+        auto cmd = pl.substr(0, p);
         string value;
         if (cmd == "r") {
             /* read */
@@ -42,8 +41,22 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
 
-        } else if (cmd == "w") {
+        } else if (cmd == "w" || cmd == "wc") {
+
             /* write */
+
+            auto kv = string(payload + 2, n - 2);
+            auto p = kv.find("=");
+
+            auto k = kv.substr(0, p);
+            auto v = kv.substr(p + 1);
+
+            co_await node.write_await(k, v, cmd == "wc");
+
+            auto resp = string("ra:");
+            co_await async_write(socket,
+                                 boost::asio::buffer(resp.c_str(), resp.size()),
+                                 boost::asio::use_awaitable);
         } else if (cmd == "g") {
             /* gossip */
             auto gossip = string(payload + 2, n - 2);

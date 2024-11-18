@@ -386,6 +386,75 @@ class Node {
         return "";
     }
 
+    boost::asio::awaitable<void>
+    write_await(std::string& key, std::string& value, bool coordinator = true) {
+
+        auto key_hash =
+            static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
+
+        if (!coordinator) {
+            /* not coordinator mode - commit the write directly */
+            ++stats.write;
+            db[key_hash] = {key, value};
+            co_return;
+        }
+
+        LookupEntry target = {key_hash, 0, 0};
+        auto it = lookup.lower_bound(target);
+
+        /* walk the ring until we find a working node */
+        int rf = replication_factor;
+        while (true) {
+
+            /* wrap around if needed */
+            if (it == lookup.end())
+                it = lookup.begin();
+
+            /* parse */
+            auto [token, timestamp, id] = *it;
+            if (id == this->id) {
+                /* local */
+                ++stats.write;
+                db[key_hash] = {key, value};
+            } else {
+                /* forward to remote if alive */
+
+                auto io = co_await boost::asio::this_coro::executor;
+
+                auto peer_addr = nodehash_lookup[id];
+                auto p = peer_addr.find(":");
+                auto addr = peer_addr.substr(0, p);
+                auto port = peer_addr.substr(p + 1);
+
+                boost::asio::ip::tcp::resolver resolver(io);
+                boost::asio::ip::tcp::socket socket(io);
+                auto ep = resolver.resolve(addr, port);
+
+                async_connect(socket, ep,
+                              [&socket](const boost::system::error_code& error,
+                                        const boost::asio::ip::tcp::endpoint&) {
+                                  /* forward read request to remote */
+                              });
+
+                auto payload = "w:" + key + "=" + value;
+                co_await async_write(
+                    socket, boost::asio::buffer(payload, payload.size()),
+                    boost::asio::use_awaitable);
+
+                ++stats.write_fwd;
+            }
+
+            if (--rf <= 0)
+                co_return;
+
+            ++it;
+        }
+
+        assert(0);
+
+        /* not local - forward request */
+    }
+
     void write(std::string& key, std::string& value, bool coordinator = true) {
 
         auto key_hash =
