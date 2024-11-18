@@ -20,13 +20,6 @@
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/write.hpp>
 
-// using boost::asio::awaitable;
-// using boost::asio::co_spawn;
-// using boost::asio::detached;
-// using boost::asio::use_awaitable;
-// using boost::asio::ip::tcp;
-// namespace this_coro = boost::asio::this_coro;
-
 using key = std::string;
 using value = std::string;
 using hash = uint64_t;
@@ -141,7 +134,7 @@ class Node {
     std::map<hash, std::pair<key, value>> db;
     node_id id;
     Stats stats;
-    std::unordered_map<uint64_t, std::string> seedhash_lookup;
+    std::unordered_map<uint64_t, std::string> peerhash_lookup;
     int replication_factor; /* replication factor */
 
     /* update lookup table after gossip completes */
@@ -198,28 +191,29 @@ class Node {
         }
     };
 
+    uint64_t current_time_ms() {
+        std::chrono::duration<double, std::milli> ms =
+            std::chrono::steady_clock::now().time_since_epoch();
+        return ms.count();
+    }
+
   public:
-    Node(node_addr seed = "", int vnode = 3, int rf = 3)
+    Node(node_addr self, node_addr seed = "", int vnode = 3, int rf = 3)
         : replication_factor(rf) {
 
         auto seedhash = static_cast<uint64_t>(std::hash<std::string>{}(seed));
-        seedhash_lookup[seedhash] = seed;
-
-        id = gd.generate_id();
-        local_map.nodes[id].timestamp = t.get();
-        local_map.nodes[id].status = NodeMap::Node::Joining;
-        for (auto i = 0; i < vnode; ++i) {
-            /* token value may dup... but should fail gracefully */
-            local_map.nodes[id].tokens.insert(p.getToken());
+        peerhash_lookup[seedhash] = seed;
+        if (seed != "") {
+            /* insert seed unknown state, updated during gossip */
+            local_map.nodes[seedhash].timestamp = 0;
         }
 
-        /* insert ourselves into global directory */
-        gd.insert(id, this);
-
-        /* insert seed into local_map with unknown state, this will be updated
-         * during gossip */
-        if (seed != "") {
-            local_map.nodes[seedhash].timestamp = 0;
+        auto selfhash = static_cast<uint64_t>(std::hash<std::string>{}(self));
+        local_map.nodes[selfhash].timestamp = current_time_ms();
+        local_map.nodes[selfhash].status = NodeMap::Node::Joining;
+        for (auto i = 0; i < vnode; ++i) {
+            /* token value may dup... but should fail gracefully */
+            local_map.nodes[selfhash].tokens.insert(p.getToken());
         }
     }
 
@@ -503,9 +497,30 @@ class Node {
         while (k && peers.size()) {
             auto kk = peers[rand() % peers.size()];
 
+            auto peer_addr = peerhash_lookup[kk];
+            auto p = peer_addr.find(":");
+            auto addr = peer_addr.substr(0, p);
+            auto port = peer_addr.substr(p);
+
             boost::asio::ip::tcp::resolver resolver(io);
             boost::asio::ip::tcp::socket socket(io);
-            auto ep = resolver.resolve("127.0.0.1", "55555");
+            auto ep = resolver.resolve(addr, port);
+
+            async_connect(socket, ep,
+                          [&socket](const boost::system::error_code& error,
+                                    const boost::asio::ip::tcp::endpoint&) {
+                              /* forward read request to remote */
+                          });
+
+            char payload[128] = {'g'};
+            co_await async_write(socket, boost::asio::buffer(payload, 1),
+                                 boost::asio::use_awaitable);
+
+            /* read results */
+            std::size_t n = co_await socket.async_read_some(
+                boost::asio::buffer(payload), boost::asio::use_awaitable);
+
+            co_return;
 
             /* TODO: account for peer death */
 

@@ -77,11 +77,11 @@ int main() {
     boost::asio::io_context io_context(1);
     boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
 
-    Node node;
+    Node node("127.0.0.1:5555");
 
     signals.async_wait([&](auto, auto) { io_context.stop(); });
 
-    co_spawn(io_context, node.read_remote("127.0.0.1:55555", "test"), detached);
+    // co_spawn(io_context, node.read_remote("127.0.0.1:55555", "test"), detached);
     co_spawn(io_context, listener(node), detached);
     co_spawn(io_context, heartbeat(node), detached);
 
