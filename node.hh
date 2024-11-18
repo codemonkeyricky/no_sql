@@ -30,6 +30,7 @@
 using key = std::string;
 using value = std::string;
 using hash = uint64_t;
+using node_addr = std::string;
 using node_id = uint64_t;
 using Tokens = std::set<hash>;
 using LookupEntry = std::array<uint64_t, 3>;
@@ -140,6 +141,7 @@ class Node {
     std::map<hash, std::pair<key, value>> db;
     node_id id;
     Stats stats;
+    std::unordered_map<uint64_t, std::string> seedhash_lookup;
     int replication_factor; /* replication factor */
 
     /* update lookup table after gossip completes */
@@ -197,8 +199,11 @@ class Node {
     };
 
   public:
-    Node(node_id seed = -1, int vnode = 3, int rf = 3)
+    Node(node_addr seed = "", int vnode = 3, int rf = 3)
         : replication_factor(rf) {
+
+        auto seedhash = static_cast<uint64_t>(std::hash<std::string>{}(seed));
+        seedhash_lookup[seedhash] = seed;
 
         id = gd.generate_id();
         local_map.nodes[id].timestamp = t.get();
@@ -213,8 +218,8 @@ class Node {
 
         /* insert seed into local_map with unknown state, this will be updated
          * during gossip */
-        if (seed != -1) {
-            local_map.nodes[seed].timestamp = 0;
+        if (seed != "") {
+            local_map.nodes[seedhash].timestamp = 0;
         }
     }
 
@@ -230,6 +235,15 @@ class Node {
         }
 
         return rv;
+    }
+
+    boost::asio::awaitable<void> gossip_await() {
+        auto io = co_await boost::asio::this_coro::executor;
+
+        boost::asio::ip::tcp::resolver resolver(io);
+        boost::asio::ip::tcp::socket socket(io);
+
+        auto ep = resolver.resolve("127.0.0.1", "55555");
     }
 
     boost::asio::awaitable<std::string> read_remote(std::string addr,
@@ -405,6 +419,7 @@ class Node {
 
     void heartbeat() {
 
+#if 0
         /* collect all peers */
         std::vector<node_id> peers;
         for (auto& peer : local_map.nodes) {
@@ -430,6 +445,79 @@ class Node {
                 /* remove dead peer */
                 peers.erase(peers.begin() + kk);
             }
+        }
+
+        if (local_map.nodes[this->id].status == NodeMap::Node::Joining) {
+
+            auto& my_node = local_map.nodes[this->id];
+
+            /* take over token, token-1, token-2, .... ptoken +1*/
+
+            if (lookup.size()) {
+
+                for (auto& my_token : my_node.tokens) {
+
+                    std::array<uint64_t, 3> target = {my_token};
+                    auto it = lookup.lower_bound(target);
+                    if (it == lookup.end()) {
+                        it = lookup.begin();
+                    }
+                    auto [token, timestamp, id] = *it;
+
+                    Lookup::iterator p;
+                    if (it == lookup.begin())
+                        p = prev(lookup.end());
+                    else
+                        p = prev(it);
+
+                    auto [ptoken, pts, pid] = *p;
+
+                    auto remote = static_cast<Node*>(gd.lookup(id));
+
+                    auto remote_db = remote->stream(ptoken + 1, token);
+
+                    /* insert into local db */
+                    db.insert(remote_db.begin(), remote_db.end());
+                }
+            }
+
+            local_map.nodes[this->id].status = NodeMap::Node::Live;
+        }
+#endif
+    }
+
+    boost::asio::awaitable<void> heartbeat_await() {
+
+        /* collect all peers */
+        std::vector<node_id> peers;
+        for (auto& peer : local_map.nodes) {
+            /* exclude ourselves */
+            if (peer.first != id) {
+                peers.push_back(peer.first);
+            }
+        }
+
+        /* pick 3 peers at random to gossip */
+        int k = 1;
+        auto io = co_await boost::asio::this_coro::executor;
+        while (k && peers.size()) {
+            auto kk = peers[rand() % peers.size()];
+
+            boost::asio::ip::tcp::resolver resolver(io);
+            boost::asio::ip::tcp::socket socket(io);
+            auto ep = resolver.resolve("127.0.0.1", "55555");
+
+            /* TODO: account for peer death */
+
+            // if (gd.is_alive(kk)) {
+            //     static_cast<Node*>(gd.lookup(kk))->gossip(local_map);
+            //     peers.erase(peers.begin() + kk);
+            //     --k;
+            //     ++stats.gossip_tx;
+            // } else {
+            //     /* remove dead peer */
+            //     peers.erase(peers.begin() + kk);
+            // }
         }
 
         if (local_map.nodes[this->id].status == NodeMap::Node::Joining) {
