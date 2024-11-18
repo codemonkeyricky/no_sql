@@ -71,7 +71,7 @@ struct NodeMap {
         }
     };
 
-    std::map<node_id, Node> nodes;
+    std::map<node_addr, Node> nodes;
 
     template <class Archive>
     void serialize(Archive& ar, const unsigned int version) {
@@ -161,7 +161,11 @@ class Node {
     auto update_lookup() -> void {
 
         lookup.clear();
-        for (auto& [id, node] : local_map.nodes) {
+        for (auto& [node_addr, node] : local_map.nodes) {
+
+            auto id =
+                static_cast<uint64_t>(std::hash<std::string>{}(node_addr));
+
             if (node.status == NodeMap::Node::Live) {
                 auto timestamp = node.timestamp;
                 for (auto token : node.tokens) {
@@ -187,9 +191,9 @@ class Node {
     /* retire local tokens owned by others  */
     auto retire_token() {
 
-        if (local_map.nodes[this->id].status == NodeMap::Node::Live) {
+        if (local_map.nodes[self].status == NodeMap::Node::Live) {
             /* adjust local map if someone else took over my token recently */
-            auto& my_node = local_map.nodes[this->id];
+            auto& my_node = local_map.nodes[self];
             for (auto my_token = my_node.tokens.begin();
                  my_token != my_node.tokens.end();) {
                 std::array<uint64_t, 3> target = {*my_token};
@@ -225,17 +229,17 @@ class Node {
         nodehash_lookup[seedhash] = seed;
         if (seed != "") {
             /* insert seed unknown state, updated during gossip */
-            local_map.nodes[seedhash].timestamp = 0;
+            local_map.nodes[seed].timestamp = 0;
         }
 
         auto selfhash = this->id =
             static_cast<uint64_t>(std::hash<std::string>{}(self));
         nodehash_lookup[selfhash] = self;
-        local_map.nodes[selfhash].timestamp = current_time_ms();
-        local_map.nodes[selfhash].status = NodeMap::Node::Joining;
+        local_map.nodes[self].timestamp = current_time_ms();
+        local_map.nodes[self].status = NodeMap::Node::Joining;
         for (auto i = 0; i < vnode; ++i) {
             /* token value may dup... but should fail gracefully */
-            local_map.nodes[selfhash].tokens.insert(p.getToken());
+            local_map.nodes[self].tokens.insert(p.getToken());
         }
     }
 
@@ -253,7 +257,7 @@ class Node {
         return rv;
     }
 
-    void gossip_await(std::string& gossip) {
+    void gossip(std::string& gossip) {
 
         NodeMap remote_map;
         std::istringstream iss(gossip);
@@ -502,97 +506,13 @@ class Node {
         /* not local - forward request */
     }
 
-    auto gossip(NodeMap& remote_map) -> void {
-
-        /* Update our local map with remote map */
-        local_map = remote_map = remote_map + local_map;
-
-        /* update local lookup based on updated local map */
-        update_lookup();
-
-        /* communicated retired token in next gossip round */
-        retire_token();
-
-        /* received gossip */
-        ++stats.gossip_rx;
-    }
-
-    void heartbeat() {
-
-#if 0
-        /* collect all peers */
-        std::vector<node_id> peers;
-        for (auto& peer : local_map.nodes) {
-            /* exclude ourselves */
-            if (peer.first != id) {
-                peers.push_back(peer.first);
-            }
-        }
-
-        /* pick 3 peers at random to gossip */
-        int k = 1;
-        while (k && peers.size()) {
-            auto kk = peers[rand() % peers.size()];
-
-            /* TODO: account for peer death */
-
-            if (gd.is_alive(kk)) {
-                static_cast<Node*>(gd.lookup(kk))->gossip(local_map);
-                peers.erase(peers.begin() + kk);
-                --k;
-                ++stats.gossip_tx;
-            } else {
-                /* remove dead peer */
-                peers.erase(peers.begin() + kk);
-            }
-        }
-
-        if (local_map.nodes[this->id].status == NodeMap::Node::Joining) {
-
-            auto& my_node = local_map.nodes[this->id];
-
-            /* take over token, token-1, token-2, .... ptoken +1*/
-
-            if (lookup.size()) {
-
-                for (auto& my_token : my_node.tokens) {
-
-                    std::array<uint64_t, 3> target = {my_token};
-                    auto it = lookup.lower_bound(target);
-                    if (it == lookup.end()) {
-                        it = lookup.begin();
-                    }
-                    auto [token, timestamp, id] = *it;
-
-                    Lookup::iterator p;
-                    if (it == lookup.begin())
-                        p = prev(lookup.end());
-                    else
-                        p = prev(it);
-
-                    auto [ptoken, pts, pid] = *p;
-
-                    auto remote = static_cast<Node*>(gd.lookup(id));
-
-                    auto remote_db = remote->stream(ptoken + 1, token);
-
-                    /* insert into local db */
-                    db.insert(remote_db.begin(), remote_db.end());
-                }
-            }
-
-            local_map.nodes[this->id].status = NodeMap::Node::Live;
-        }
-#endif
-    }
-
     boost::asio::awaitable<void> heartbeat_await() {
 
         /* collect all peers */
-        std::vector<node_id> peers;
+        std::vector<node_addr> peers;
         for (auto& peer : local_map.nodes) {
             /* exclude ourselves */
-            if (nodehash_lookup[peer.first] != self) {
+            if (peer.first != self) {
                 peers.push_back(peer.first);
             }
         }
@@ -606,7 +526,7 @@ class Node {
         while (k && peers.size()) {
             auto kk = peers[rand() % peers.size()];
 
-            auto peer_addr = nodehash_lookup[kk];
+            auto peer_addr = kk;
             auto p = peer_addr.find(":");
             auto addr = peer_addr.substr(0, p);
             auto port = peer_addr.substr(p + 1);
@@ -663,9 +583,9 @@ class Node {
             --k;
         }
 
-        if (local_map.nodes[this->id].status == NodeMap::Node::Joining) {
+        if (local_map.nodes[self].status == NodeMap::Node::Joining) {
 
-            auto& my_node = local_map.nodes[this->id];
+            auto& my_node = local_map.nodes[self];
 
             /* take over token, token-1, token-2, .... ptoken +1*/
 
@@ -697,7 +617,7 @@ class Node {
                 }
             }
 
-            local_map.nodes[this->id].status = NodeMap::Node::Live;
+            local_map.nodes[self].status = NodeMap::Node::Live;
         }
     }
 
