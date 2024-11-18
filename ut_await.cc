@@ -76,15 +76,18 @@ awaitable<void> heartbeat(Node& node) {
     boost::asio::steady_timer timer(co_await this_coro::executor);
 
     for (;;) {
+        cout << "heartbeat #1" << endl;
 
         co_await node.heartbeat_await();
+
+        cout << "heartbeat #2" << endl;
 
         /* heartbeat every second */
         timer.expires_at(std::chrono::steady_clock::now() +
                          std::chrono::seconds(1));
         co_await timer.async_wait(use_awaitable);
 
-        cout << "heartbeat!" << endl;
+        cout << "heartbeat #3" << endl;
     }
 }
 

@@ -4,6 +4,7 @@
 #include "directory.hh"
 #include <array>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <set>
 #include <string>
@@ -529,6 +530,9 @@ class Node {
 
         /* pick 3 peers at random to gossip */
         int k = 1;
+
+        std::cout << "heartbeat_await #1" << std::endl;
+
         auto io = co_await boost::asio::this_coro::executor;
         while (k && peers.size()) {
             auto kk = peers[rand() % peers.size()];
@@ -542,20 +546,28 @@ class Node {
             boost::asio::ip::tcp::socket socket(io);
             auto ep = resolver.resolve(addr, port);
 
+            std::cout << "heartbeat_await #2" << std::endl;
+
             async_connect(socket, ep,
                           [&socket](const boost::system::error_code& error,
                                     const boost::asio::ip::tcp::endpoint&) {
                               /* forward read request to remote */
                           });
 
+            std::cout << "heartbeat_await #3" << std::endl;
+
             std::ostringstream oss;
             boost::archive::text_oarchive oa(oss);
             oa << local_map; // Serialize the data
+
+            std::cout << "heartbeat_await #4" << std::endl;
 
             auto payload = "g:" + oss.str();
             co_await async_write(socket,
                                  boost::asio::buffer(payload, payload.size()),
                                  boost::asio::use_awaitable);
+
+            std::cout << "heartbeat_await #5" << std::endl;
 
             /* read results */
 
@@ -579,6 +591,7 @@ class Node {
             //     /* remove dead peer */
             //     peers.erase(peers.begin() + kk);
             // }
+            --k;
         }
 
         if (local_map.nodes[this->id].status == NodeMap::Node::Joining) {
