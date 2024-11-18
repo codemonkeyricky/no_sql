@@ -1,3 +1,15 @@
+cc_binary(
+    name = "server", 
+    srcs = [
+        "node.hh",
+        "directory.hh",
+        "server.cc",
+    ], 
+    copts = [
+        "-std=c++20",
+    ],
+)
+
 cc_test(
     name = "db", 
     srcs = [
