@@ -152,8 +152,9 @@ class Node {
     std::map<hash, std::pair<key, value>> db;
     node_id id;
     Stats stats;
-    std::unordered_map<uint64_t, std::string> peerhash_lookup;
+    std::unordered_map<uint64_t, std::string> nodehash_lookup;
     int replication_factor; /* replication factor */
+    node_addr self;
 
     /* update lookup table after gossip completes */
     auto update_lookup() -> void {
@@ -217,16 +218,18 @@ class Node {
 
   public:
     Node(node_addr self, node_addr seed = "", int vnode = 3, int rf = 3)
-        : replication_factor(rf) {
+        : self(self), replication_factor(rf) {
 
         auto seedhash = static_cast<uint64_t>(std::hash<std::string>{}(seed));
-        peerhash_lookup[seedhash] = seed;
+        nodehash_lookup[seedhash] = seed;
         if (seed != "") {
             /* insert seed unknown state, updated during gossip */
             local_map.nodes[seedhash].timestamp = 0;
         }
 
-        auto selfhash = static_cast<uint64_t>(std::hash<std::string>{}(self));
+        auto selfhash = this->id =
+            static_cast<uint64_t>(std::hash<std::string>{}(self));
+        nodehash_lookup[selfhash] = self;
         local_map.nodes[selfhash].timestamp = current_time_ms();
         local_map.nodes[selfhash].status = NodeMap::Node::Joining;
         for (auto i = 0; i < vnode; ++i) {
@@ -518,7 +521,7 @@ class Node {
         std::vector<node_id> peers;
         for (auto& peer : local_map.nodes) {
             /* exclude ourselves */
-            if (peer.first != id) {
+            if (nodehash_lookup[peer.first] != self) {
                 peers.push_back(peer.first);
             }
         }
@@ -529,7 +532,7 @@ class Node {
         while (k && peers.size()) {
             auto kk = peers[rand() % peers.size()];
 
-            auto peer_addr = peerhash_lookup[kk];
+            auto peer_addr = nodehash_lookup[kk];
             auto p = peer_addr.find(":");
             auto addr = peer_addr.substr(0, p);
             auto port = peer_addr.substr(p);
@@ -618,5 +621,6 @@ class Node {
     const NodeMap& peers() const { return local_map; }
     const Lookup& get_lookup() const { return lookup; }
     const node_id get_id() const { return id; }
+    const node_addr get_addr() const { return self; }
     const Stats get_stats() const { return stats; }
 };

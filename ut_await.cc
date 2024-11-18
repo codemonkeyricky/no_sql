@@ -60,7 +60,11 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
 awaitable<void> listener(Node& node) {
     auto executor = co_await this_coro::executor;
 
-    tcp::acceptor acceptor(executor, {tcp::v4(), 55555});
+    auto p = node.get_addr().find(":");
+    auto addr = node.get_addr().substr(0, p);
+    auto port = node.get_addr().substr(p + 1);
+
+    tcp::acceptor acceptor(executor, {tcp::v4(), stoi(port)});
     for (;;) {
         auto socket =
             co_await acceptor.async_accept(boost::asio::use_awaitable);
@@ -72,6 +76,8 @@ awaitable<void> heartbeat(Node& node) {
     boost::asio::steady_timer timer(co_await this_coro::executor);
 
     for (;;) {
+
+        co_await node.heartbeat_await();
 
         /* heartbeat every second */
         timer.expires_at(std::chrono::steady_clock::now() +
@@ -90,10 +96,13 @@ int main() {
 
     signals.async_wait([&](auto, auto) { io_context.stop(); });
 
-    // co_spawn(io_context, node.read_remote("127.0.0.1:55555", "test"),
-    // detached);
     co_spawn(io_context, listener(node), detached);
     co_spawn(io_context, heartbeat(node), detached);
+
+    Node node2("127.0.0.1:5556", "127.0.0.1:5555");
+
+    // co_spawn(io_context, listener(node2), detached);
+    // co_spawn(io_context, heartbeat(node2), detached);
 
     io_context.run();
 
