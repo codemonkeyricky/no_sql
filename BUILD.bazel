@@ -32,6 +32,9 @@ cc_binary(
     copts = [
         "-std=c++20",
     ],
+    linkopts = [
+        "-lboost_serialization",
+    ],
 )
 
 cc_binary(

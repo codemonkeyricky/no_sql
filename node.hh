@@ -22,6 +22,7 @@
 
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
+#include <boost/serialization/map.hpp>
 #include <boost/serialization/set.hpp>
 #include <boost/serialization/vector.hpp>
 
@@ -60,9 +61,21 @@ struct NodeMap {
         uint64_t timestamp;
         Status status;
         Tokens tokens;
+
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & timestamp;
+            ar & status;
+            ar & tokens;
+        }
     };
 
     std::map<node_id, Node> nodes;
+
+    template <class Archive>
+    void serialize(Archive& ar, const unsigned int version) {
+        ar & nodes;
+    }
 
     /* add remote map into local map */
     NodeMap operator+(NodeMap const& remote_map) {
