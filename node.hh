@@ -20,6 +20,11 @@
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/write.hpp>
 
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/serialization/set.hpp>
+#include <boost/serialization/vector.hpp>
+
 using key = std::string;
 using value = std::string;
 using hash = uint64_t;
@@ -511,6 +516,12 @@ class Node {
                                     const boost::asio::ip::tcp::endpoint&) {
                               /* forward read request to remote */
                           });
+
+            std::ostringstream oss;
+            {
+                boost::archive::text_oarchive oa(oss);
+                oa << local_map; // Serialize the data
+            };
 
             char payload[128] = {'g'};
             co_await async_write(socket, boost::asio::buffer(payload, 1),
