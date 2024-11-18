@@ -37,15 +37,24 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
             /* read */
             auto key = string(payload + 2, n - 2);
             value = co_await node.read_await(key);
+            auto resp = "ra:" + value;
+            co_await async_write(socket,
+                                 boost::asio::buffer(resp.c_str(), resp.size()),
+                                 boost::asio::use_awaitable);
+
         } else if (cmd == "w") {
             /* write */
         } else if (cmd == "g") {
             /* gossip */
+            auto gossip = string(payload + 2, n - 2);
+            node.gossip_await(gossip);
+            auto resp = "ga:" + gossip;
+            co_await async_write(socket,
+                                 boost::asio::buffer(resp.c_str(), resp.size()),
+                                 boost::asio::use_awaitable);
         }
-
-        co_await async_write(socket, boost::asio::buffer(payload, n),
-                             boost::asio::use_awaitable);
     }
+    co_return;
 }
 
 awaitable<void> listener(Node& node) {
@@ -81,7 +90,8 @@ int main() {
 
     signals.async_wait([&](auto, auto) { io_context.stop(); });
 
-    // co_spawn(io_context, node.read_remote("127.0.0.1:55555", "test"), detached);
+    // co_spawn(io_context, node.read_remote("127.0.0.1:55555", "test"),
+    // detached);
     co_spawn(io_context, listener(node), detached);
     co_spawn(io_context, heartbeat(node), detached);
 

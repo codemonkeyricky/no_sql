@@ -249,13 +249,27 @@ class Node {
         return rv;
     }
 
-    boost::asio::awaitable<void> gossip_await() {
-        auto io = co_await boost::asio::this_coro::executor;
+    void gossip_await(std::string& gossip) {
 
-        boost::asio::ip::tcp::resolver resolver(io);
-        boost::asio::ip::tcp::socket socket(io);
+        NodeMap remote_map;
+        std::istringstream iss(gossip);
+        boost::archive::text_iarchive ia(iss);
+        ia >> remote_map;
 
-        auto ep = resolver.resolve("127.0.0.1", "55555");
+        local_map = remote_map = remote_map + local_map;
+
+        /* update local lookup based on updated local map */
+        update_lookup();
+
+        /* communicated retired token in next gossip round */
+        retire_token();
+
+        std::ostringstream oss;
+        boost::archive::text_oarchive oa(oss);
+        oa << local_map; // Serialize the data
+
+        /* received gossip */
+        ++stats.gossip_rx;
     }
 
     boost::asio::awaitable<std::string> read_remote(std::string addr,
@@ -531,20 +545,24 @@ class Node {
                           });
 
             std::ostringstream oss;
-            {
-                boost::archive::text_oarchive oa(oss);
-                oa << local_map; // Serialize the data
-            };
+            boost::archive::text_oarchive oa(oss);
+            oa << local_map; // Serialize the data
 
-            char payload[128] = {'g'};
-            co_await async_write(socket, boost::asio::buffer(payload, 1),
+            auto payload = "g:" + oss.str();
+            co_await async_write(socket,
+                                 boost::asio::buffer(payload, payload.size()),
                                  boost::asio::use_awaitable);
 
             /* read results */
-            std::size_t n = co_await socket.async_read_some(
-                boost::asio::buffer(payload), boost::asio::use_awaitable);
 
-            co_return;
+            char rx_payload[1024] = {};
+            std::size_t n = co_await socket.async_read_some(
+                boost::asio::buffer(rx_payload), boost::asio::use_awaitable);
+
+            auto serialized_data = std::string(rx_payload + 3, n - 3);
+            std::istringstream iss(serialized_data);
+            boost::archive::text_iarchive ia(iss);
+            ia >> local_map;
 
             /* TODO: account for peer death */
 
