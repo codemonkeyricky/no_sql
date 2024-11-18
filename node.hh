@@ -270,6 +270,7 @@ class Node {
         std::ostringstream oss;
         boost::archive::text_oarchive oa(oss);
         oa << local_map; // Serialize the data
+        gossip = oss.str();
 
         /* received gossip */
         ++stats.gossip_rx;
