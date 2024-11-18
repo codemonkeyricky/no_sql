@@ -25,12 +25,17 @@ awaitable<void> rx_process(tcp::socket socket) {
         std::size_t n = co_await socket.async_read_some(
             boost::asio::buffer(payload), boost::asio::use_awaitable);
 
-        switch (payload[0]) {
-        case 'r':
-            cout << "r received" << endl;
-            break;
-        case 'w':
-            break;
+        string cmd(payload, 1);
+
+        // auto cmd = s.substr(0, p);
+        // auto payload = s.substr(p);
+
+        if (cmd == "r") {
+            /* read */
+        } else if (cmd == "w") {
+            /* write */
+        } else if (cmd == "g") {
+            /* gossip */
         }
 
         co_await async_write(socket, boost::asio::buffer(payload, n),
