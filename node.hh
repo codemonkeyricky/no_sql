@@ -535,7 +535,7 @@ class Node {
             auto peer_addr = nodehash_lookup[kk];
             auto p = peer_addr.find(":");
             auto addr = peer_addr.substr(0, p);
-            auto port = peer_addr.substr(p);
+            auto port = peer_addr.substr(p + 1);
 
             boost::asio::ip::tcp::resolver resolver(io);
             boost::asio::ip::tcp::socket socket(io);

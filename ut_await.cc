@@ -101,8 +101,8 @@ int main() {
 
     Node node2("127.0.0.1:5556", "127.0.0.1:5555");
 
-    // co_spawn(io_context, listener(node2), detached);
-    // co_spawn(io_context, heartbeat(node2), detached);
+    co_spawn(io_context, listener(node2), detached);
+    co_spawn(io_context, heartbeat(node2), detached);
 
     io_context.run();
 
