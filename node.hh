@@ -12,6 +12,21 @@
 #include <unordered_map>
 #include <vector>
 
+#include <boost/asio/co_spawn.hpp>
+#include <boost/asio/connect.hpp>
+#include <boost/asio/detached.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/signal_set.hpp>
+#include <boost/asio/write.hpp>
+
+// using boost::asio::awaitable;
+// using boost::asio::co_spawn;
+// using boost::asio::detached;
+// using boost::asio::use_awaitable;
+// using boost::asio::ip::tcp;
+// namespace this_coro = boost::asio::this_coro;
+
 using key = std::string;
 using value = std::string;
 using hash = uint64_t;
@@ -215,6 +230,78 @@ class Node {
         }
 
         return rv;
+    }
+
+    boost::asio::awaitable<std::string> read_remote(std::string addr,
+                                                    std::string key) {
+
+        auto io = co_await boost::asio::this_coro::executor;
+
+        boost::asio::ip::tcp::resolver resolver(io);
+        boost::asio::ip::tcp::socket socket(io);
+
+        auto ep = resolver.resolve("127.0.0.1", "55555");
+
+        async_connect(socket, ep,
+                      [&socket](const boost::system::error_code& error,
+                                const boost::asio::ip::tcp::endpoint&) {
+                          /* forward read request to remote */
+                      });
+
+        char payload[128] = {'a', 'b', 'c', 'd'};
+        co_await async_write(socket,
+                             boost::asio::buffer(payload, sizeof(payload)),
+                             boost::asio::use_awaitable);
+
+        /* read results */
+        std::size_t n = co_await socket.async_read_some(
+            boost::asio::buffer(payload), boost::asio::use_awaitable);
+
+        co_return "";
+    }
+
+    // boost::asio::awaitable<std::string> test_a() {
+    //     co_return co_await test_b();
+    // }
+    // boost::asio::awaitable<std::string> test_b() { co_return "test"; }
+
+    boost::asio::awaitable<std::string> read_await(std::string key) {
+
+        auto key_hash =
+            static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
+
+        LookupEntry target = {key_hash, 0, 0};
+        auto it = lookup.lower_bound(target);
+
+        /* walk the ring until we find a working node */
+        while (true) {
+
+            /* wrap around if needed */
+            if (it == lookup.end())
+                it = lookup.begin();
+
+            /* parse */
+            auto [token, timestamp, id] = *it;
+            if (id == this->id) {
+                /* local */
+                ++stats.read;
+                if (db.count(key_hash)) {
+                    /* exists */
+                    co_return db[key_hash].second;
+                }
+                co_return "";
+            } else if (gd.is_alive(id)) {
+                /* forward to remote if alive */
+                ++stats.read_fwd;
+                std::string addr("localhost:55555");
+                std::string rv;
+                co_return co_await read_remote(std::move(addr), std::move(key));
+            }
+
+            ++it;
+        }
+        assert(0);
+        co_return "";
     }
 
     std::string read(std::string& key) {
