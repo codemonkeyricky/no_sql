@@ -25,6 +25,14 @@ awaitable<void> rx_process(tcp::socket socket) {
         std::size_t n = co_await socket.async_read_some(
             boost::asio::buffer(payload), boost::asio::use_awaitable);
 
+        switch (payload[0]) {
+        case 'r':
+            cout << "r received" << endl;
+            break;
+        case 'w':
+            break;
+        }
+
         co_await async_write(socket, boost::asio::buffer(payload, n),
                              boost::asio::use_awaitable);
     }
