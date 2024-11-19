@@ -469,36 +469,47 @@ class Node {
             boost::asio::ip::tcp::socket socket(io);
             auto ep = resolver.resolve(addr, port);
 
-            async_connect(socket, ep,
-                          [&socket](const boost::system::error_code& error,
-                                    const boost::asio::ip::tcp::endpoint&) {});
+            boost::system::error_code err_code;
+            async_connect(
+                socket, ep,
+                [&socket, &err_code](const boost::system::error_code& error,
+                                     const boost::asio::ip::tcp::endpoint&) {
+                    err_code = error;
+                });
 
-            auto payload = "g:" + serialize(local_map);
-            co_await async_write(socket,
-                                 boost::asio::buffer(payload, payload.size()),
-                                 boost::asio::use_awaitable);
+            try {
 
-            /* read results */
+                auto payload = "g:" + serialize(local_map);
+                co_await async_write(
+                    socket, boost::asio::buffer(payload, payload.size()),
+                    boost::asio::use_awaitable);
 
-            char rx_payload[1024] = {};
-            std::size_t n = co_await socket.async_read_some(
-                boost::asio::buffer(rx_payload), boost::asio::use_awaitable);
+                /* read results */
 
-            auto serialized_data = std::string(rx_payload + 3, n - 3);
-            local_map = deserialize<NodeMap>(serialized_data);
-            update_lookup();
+                char rx_payload[1024] = {};
+                std::size_t n = co_await socket.async_read_some(
+                    boost::asio::buffer(rx_payload),
+                    boost::asio::use_awaitable);
 
-            /* TODO: account for peer death */
+                auto serialized_data = std::string(rx_payload + 3, n - 3);
+                local_map = deserialize<NodeMap>(serialized_data);
+                update_lookup();
 
-            // if (gd.is_alive(kk)) {
-            //     static_cast<Node*>(gd.lookup(kk))->gossip(local_map);
-            //     peers.erase(peers.begin() + kk);
-            //     --k;
-            //     ++stats.gossip_tx;
-            // } else {
-            //     /* remove dead peer */
-            //     peers.erase(peers.begin() + kk);
-            // }
+                /* TODO: account for peer death */
+
+                // if (gd.is_alive(kk)) {
+                //     static_cast<Node*>(gd.lookup(kk))->gossip(local_map);
+                //     peers.erase(peers.begin() + kk);
+                //     --k;
+                //     ++stats.gossip_tx;
+                // } else {
+                //     /* remove dead peer */
+                //     peers.erase(peers.begin() + kk);
+                // }
+            } catch (std::exception& e) {
+                std::cout << self << ":" << "heartbeat() - failed to connect!"
+                          << std::endl;
+            }
             --k;
         }
 
