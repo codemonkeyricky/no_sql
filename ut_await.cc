@@ -42,18 +42,23 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
 
-        } else if (cmd == "w" || cmd == "wc") {
+        } else if (cmd == "w" || cmd == "wf") {
 
             /* write */
 
-            auto kv = string(data + 2, n - 2);
+            auto kv = string(data + cmd.size() + 1, n - cmd.size() - 1);
             auto p = kv.find("=");
             auto k = kv.substr(0, p);
             auto v = kv.substr(p + 1);
 
-            co_await node.write(k, v, cmd == "wc");
+            co_await node.write(k, v, cmd == "w");
 
-            auto resp = string("ra:");
+            string resp;
+            if (cmd == "wf")
+                resp = string("wfa:");
+            else
+                resp = string("wa:");
+
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);

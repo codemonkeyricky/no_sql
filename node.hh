@@ -160,6 +160,7 @@ class Node {
     auto update_lookup() -> void {
 
         lookup.clear();
+        nodehash_lookup.clear();
         for (auto& [node_addr, node] : local_map.nodes) {
 
             auto id =
@@ -184,6 +185,8 @@ class Node {
                         lookup.insert(target);
                     }
                 }
+
+                nodehash_lookup[id] = node_addr;
             }
         }
     }
@@ -369,12 +372,16 @@ class Node {
         co_return "";
     }
 
-    boost::asio::awaitable<void> write_remote(const std::string& peer,
+    boost::asio::awaitable<void> write_remote(const std::string& peer_addr,
                                               const std::string& key,
                                               const std::string& value) {
+
+        std::cout << self << ":" << "write_remote() invoked!" << std::endl;
+
         auto io = co_await boost::asio::this_coro::executor;
 
-        const auto& peer_addr = nodehash_lookup[id];
+        std::cout << self << ":" << "write_remote() invoked ##!" << std::endl;
+
         const auto p = peer_addr.find(":");
         const auto addr = peer_addr.substr(0, p);
         const auto port = peer_addr.substr(p + 1);
@@ -387,7 +394,7 @@ class Node {
                       [&socket](const boost::system::error_code& error,
                                 const boost::asio::ip::tcp::endpoint&) {});
 
-        const auto payload = "w:" + key + "=" + value;
+        const auto payload = "wf:" + key + "=" + value;
         co_await async_write(socket,
                              boost::asio::buffer(payload, payload.size()),
                              boost::asio::use_awaitable);
@@ -426,7 +433,7 @@ class Node {
             } else {
                 /* forward to remote if alive */
 
-                write_remote(nodehash_lookup[id], key, value);
+                co_await write_remote(nodehash_lookup[id], key, value);
 
                 ++stats.write_fwd;
             }
