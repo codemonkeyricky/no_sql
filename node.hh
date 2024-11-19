@@ -144,7 +144,6 @@ class Node {
     };
 
   private:
-    GlobalDirectory& gd = GlobalDirectory::instance();
     Partitioner& p = Partitioner::instance();
     Time& t = Time::instance();
 
@@ -528,9 +527,8 @@ class Node {
 
                     auto [ptoken, pts, pid] = *p;
 
-                    auto remote = static_cast<Node*>(gd.lookup(id));
-
-                    auto remote_db = remote->stream(ptoken + 1, token);
+                    auto remote_db = co_await stream_remote(nodehash_lookup[id],
+                                                            ptoken + 1, token);
 
                     /* insert into local db */
                     db.insert(remote_db.begin(), remote_db.end());
@@ -539,6 +537,41 @@ class Node {
 
             local_map.nodes[self].status = NodeMap::Node::Live;
         }
+    }
+
+    boost::asio::awaitable<std::map<hash, std::pair<key, value>>>
+    stream_remote(const std::string& peer, const hash i, const hash j) {
+
+        auto io = co_await boost::asio::this_coro::executor;
+
+        boost::asio::ip::tcp::resolver resolver(io);
+        boost::asio::ip::tcp::socket socket(io);
+
+        auto p = peer.find(":");
+        auto addr = peer.substr(0, p);
+        auto port = peer.substr(p + 1);
+
+        auto ep = resolver.resolve(addr, port);
+
+        /* Connect */
+        async_connect(socket, ep,
+                      [&socket](const boost::system::error_code& error,
+                                const boost::asio::ip::tcp::endpoint&) {});
+
+        std::string req = "s:" + std::to_string(i) + "-" + std::to_string(j);
+        co_await async_write(socket,
+                             boost::asio::buffer(req.c_str(), req.size()),
+                             boost::asio::use_awaitable);
+
+        /* read results */
+        char payload[1024] = {};
+        std::size_t n = co_await socket.async_read_some(
+            boost::asio::buffer(payload), boost::asio::use_awaitable);
+        std::string sa(payload + 3, n - 3);
+
+        std::map<hash, std::pair<key, value>> rv;
+
+        co_return std::move(rv);
     }
 
     const NodeMap& peers() const { return local_map; }
