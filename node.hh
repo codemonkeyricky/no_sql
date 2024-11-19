@@ -281,8 +281,8 @@ class Node {
         ++stats.gossip_rx;
     }
 
-    boost::asio::awaitable<std::string> read_remote(std::string peer,
-                                                    std::string key) {
+    boost::asio::awaitable<std::string> read_remote(std::string& peer,
+                                                    std::string& key) {
 
         auto io = co_await boost::asio::this_coro::executor;
 
@@ -295,30 +295,27 @@ class Node {
 
         auto ep = resolver.resolve(addr, port);
 
+        /* Connect */
         async_connect(socket, ep,
                       [&socket](const boost::system::error_code& error,
-                                const boost::asio::ip::tcp::endpoint&) {
-                          /* forward read request to remote */
-                      });
+                                const boost::asio::ip::tcp::endpoint&) {});
 
-        char payload[128] = {'a', 'b', 'c', 'd'};
+        std::string req = "r:" + key;
         co_await async_write(socket,
-                             boost::asio::buffer(payload, sizeof(payload)),
+                             boost::asio::buffer(req.c_str(), req.size()),
                              boost::asio::use_awaitable);
 
         /* read results */
+        char payload[1024] = {};
         std::size_t n = co_await socket.async_read_some(
             boost::asio::buffer(payload), boost::asio::use_awaitable);
 
-        co_return "";
+        std::string rv(payload + 3, n - 3);
+
+        co_return rv;
     }
 
-    // boost::asio::awaitable<std::string> test_a() {
-    //     co_return co_await test_b();
-    // }
-    // boost::asio::awaitable<std::string> test_b() { co_return "test"; }
-
-    boost::asio::awaitable<std::string> read(std::string key) {
+    boost::asio::awaitable<std::string> read(std::string& key) {
 
         auto key_hash =
             static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
@@ -356,6 +353,31 @@ class Node {
         co_return "";
     }
 
+    boost::asio::awaitable<void>
+    write_remote(std::string& peer, std::string& key, std::string& value) {
+        auto io = co_await boost::asio::this_coro::executor;
+
+        auto peer_addr = nodehash_lookup[id];
+        auto p = peer_addr.find(":");
+        auto addr = peer_addr.substr(0, p);
+        auto port = peer_addr.substr(p + 1);
+
+        boost::asio::ip::tcp::resolver resolver(io);
+        boost::asio::ip::tcp::socket socket(io);
+        auto ep = resolver.resolve(addr, port);
+
+        async_connect(socket, ep,
+                      [&socket](const boost::system::error_code& error,
+                                const boost::asio::ip::tcp::endpoint&) {
+                          /* forward read request to remote */
+                      });
+
+        auto payload = "w:" + key + "=" + value;
+        co_await async_write(socket,
+                             boost::asio::buffer(payload, payload.size()),
+                             boost::asio::use_awaitable);
+    }
+
     boost::asio::awaitable<void> write(std::string& key, std::string& value,
                                        bool coordinator = true) {
 
@@ -389,27 +411,7 @@ class Node {
             } else {
                 /* forward to remote if alive */
 
-                auto io = co_await boost::asio::this_coro::executor;
-
-                auto peer_addr = nodehash_lookup[id];
-                auto p = peer_addr.find(":");
-                auto addr = peer_addr.substr(0, p);
-                auto port = peer_addr.substr(p + 1);
-
-                boost::asio::ip::tcp::resolver resolver(io);
-                boost::asio::ip::tcp::socket socket(io);
-                auto ep = resolver.resolve(addr, port);
-
-                async_connect(socket, ep,
-                              [&socket](const boost::system::error_code& error,
-                                        const boost::asio::ip::tcp::endpoint&) {
-                                  /* forward read request to remote */
-                              });
-
-                auto payload = "w:" + key + "=" + value;
-                co_await async_write(
-                    socket, boost::asio::buffer(payload, payload.size()),
-                    boost::asio::use_awaitable);
+                write_remote(nodehash_lookup[id], key, value);
 
                 ++stats.write_fwd;
             }
