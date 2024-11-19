@@ -284,9 +284,6 @@ class Node {
         /* communicated retired token in next gossip round */
         retire_token();
 
-        // std::ostringstream oss;
-        // boost::archive::text_oarchive oa(oss);
-        // oa << local_map; // Serialize the data
         gossip = serialize(local_map);
 
         /* received gossip */
@@ -467,9 +464,7 @@ class Node {
 
             async_connect(socket, ep,
                           [&socket](const boost::system::error_code& error,
-                                    const boost::asio::ip::tcp::endpoint&) {
-                              /* forward read request to remote */
-                          });
+                                    const boost::asio::ip::tcp::endpoint&) {});
 
             auto payload = "g:" + serialize(local_map);
             co_await async_write(socket,
