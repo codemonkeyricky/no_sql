@@ -1,6 +1,7 @@
 
 
 #include "node.hh"
+#include <chrono>
 #include <iomanip>
 #include <iostream>
 
@@ -94,8 +95,12 @@ awaitable<void> listener(Node& node) {
     }
 }
 
-awaitable<void> heartbeat(Node& node) {
+awaitable<void> heartbeat(Node& node, int start_delay_ms) {
     boost::asio::steady_timer timer(co_await this_coro::executor);
+
+    timer.expires_at(std::chrono::steady_clock::now() +
+                     std::chrono::milliseconds(start_delay_ms));
+    co_await timer.async_wait(use_awaitable);
 
     for (;;) {
         cout << "heartbeat #1" << endl;
@@ -122,12 +127,12 @@ int main() {
     signals.async_wait([&](auto, auto) { io_context.stop(); });
 
     co_spawn(io_context, listener(node), detached);
-    co_spawn(io_context, heartbeat(node), detached);
+    co_spawn(io_context, heartbeat(node, 0), detached);
 
     Node node2("127.0.0.1:5556", "127.0.0.1:5555");
 
     co_spawn(io_context, listener(node2), detached);
-    co_spawn(io_context, heartbeat(node2), detached);
+    co_spawn(io_context, heartbeat(node2, 100), detached);
 
     io_context.run();
 

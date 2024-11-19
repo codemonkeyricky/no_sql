@@ -274,8 +274,12 @@ class Node {
 
     void gossip(std::string& gossip) {
 
+        std::cout << self << ":" << "gossip invoked!" << std::endl;
+
+        /* fetch remote_map */
         auto remote_map = deserialize<NodeMap>(gossip);
 
+        /* update local_map */
         local_map = remote_map = remote_map + local_map;
 
         /* update local lookup based on updated local map */
@@ -284,6 +288,7 @@ class Node {
         /* communicated retired token in next gossip round */
         retire_token();
 
+        /* serialize local_map */
         gossip = serialize(local_map);
 
         /* received gossip */
@@ -292,6 +297,8 @@ class Node {
 
     boost::asio::awaitable<std::string> read_remote(std::string& peer,
                                                     std::string& key) {
+
+        std::cout << self << ":" << "read_remote() invoked!" << std::endl;
 
         auto io = co_await boost::asio::this_coro::executor;
 
@@ -479,6 +486,7 @@ class Node {
 
             auto serialized_data = std::string(rx_payload + 3, n - 3);
             local_map = deserialize<NodeMap>(serialized_data);
+            update_lookup();
 
             /* TODO: account for peer death */
 
@@ -528,11 +536,14 @@ class Node {
             }
 
             local_map.nodes[self].status = NodeMap::Node::Live;
+            local_map.nodes[self].timestamp = current_time_ms();
         }
     }
 
     boost::asio::awaitable<std::map<hash, std::pair<key, value>>>
     stream_remote(const std::string& peer, const hash i, const hash j) {
+
+        std::cout << self << ":" << "stream_remote() invoked!" << std::endl;
 
         auto io = co_await boost::asio::this_coro::executor;
 
