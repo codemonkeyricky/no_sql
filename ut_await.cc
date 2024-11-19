@@ -10,6 +10,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/write.hpp>
+#include <string>
 
 using boost::asio::awaitable;
 using boost::asio::co_spawn;
@@ -60,6 +61,21 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
             auto gossip = payload.substr(p + 1);
             node.gossip(gossip);
             auto resp = "ga:" + gossip;
+            co_await async_write(socket,
+                                 boost::asio::buffer(resp.c_str(), resp.size()),
+                                 boost::asio::use_awaitable);
+        } else if (cmd == "s") {
+            auto stream = payload.substr(p + 1);
+            auto p = stream.find("-");
+            auto si = stream.substr(0, p);
+            auto sj = stream.substr(p + 1);
+            auto i = stoll(si), j = stoll(sj);
+            auto db = node.stream(i, j);
+
+            std::ostringstream oss;
+            boost::archive::text_oarchive oa(oss);
+            oa << db;
+            auto resp = "sa:" + oss.str();
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
