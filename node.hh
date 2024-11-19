@@ -260,15 +260,21 @@ class Node {
         std::ostringstream oss;
         boost::archive::text_oarchive oa(oss);
         oa << data;
-        return std::move(oss.str());
+        return oss.str();
+    }
+
+    template <typename T, typename StringType>
+    T deserialize(StringType&& data) {
+        T rv;
+        std::istringstream iss(data);
+        boost::archive::text_iarchive ia(iss);
+        ia >> rv;
+        return std::move(rv);
     }
 
     void gossip(std::string& gossip) {
 
-        NodeMap remote_map;
-        std::istringstream iss(gossip);
-        boost::archive::text_iarchive ia(iss);
-        ia >> remote_map;
+        auto remote_map = deserialize<NodeMap>(gossip);
 
         local_map = remote_map = remote_map + local_map;
 
@@ -477,9 +483,7 @@ class Node {
                 boost::asio::buffer(rx_payload), boost::asio::use_awaitable);
 
             auto serialized_data = std::string(rx_payload + 3, n - 3);
-            std::istringstream iss(serialized_data);
-            boost::archive::text_iarchive ia(iss);
-            ia >> local_map;
+            local_map = deserialize<NodeMap>(serialized_data);
 
             /* TODO: account for peer death */
 
@@ -562,12 +566,8 @@ class Node {
             boost::asio::buffer(payload), boost::asio::use_awaitable);
         std::string sa(payload + 3, n - 3);
 
-        std::map<hash, std::pair<key, value>> rv;
-        std::istringstream iss(sa);
-        boost::archive::text_iarchive ia(iss);
-        ia >> rv;
-
-        co_return std::move(rv);
+        co_return std::move(
+            deserialize<std::map<hash, std::pair<key, value>>>(sa));
     }
 
     const NodeMap& peers() const { return local_map; }

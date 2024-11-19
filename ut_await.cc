@@ -67,15 +67,10 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
         } else if (cmd == "s") {
             auto stream = payload.substr(p + 1);
             auto p = stream.find("-");
-            auto si = stream.substr(0, p);
-            auto sj = stream.substr(p + 1);
-            auto i = stoll(si), j = stoll(sj);
-            auto db = node.stream(i, j);
+            auto i = stoll(stream.substr(0, p)),
+                 j = stoll(stream.substr(p + 1));
 
-            std::ostringstream oss;
-            boost::archive::text_oarchive oa(oss);
-            oa << db;
-            auto resp = "sa:" + oss.str();
+            auto resp = "sa:" + node.serialize(node.stream(i, j));
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
