@@ -35,7 +35,7 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
         if (cmd == "r") {
             /* read */
             auto key = string(payload + 2, n - 2);
-            value = co_await node.read_await(key);
+            value = co_await node.read(key);
             auto resp = "ra:" + value;
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
@@ -51,7 +51,7 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
             auto k = kv.substr(0, p);
             auto v = kv.substr(p + 1);
 
-            co_await node.write_await(k, v, cmd == "wc");
+            co_await node.write(k, v, cmd == "wc");
 
             auto resp = string("ra:");
             co_await async_write(socket,
@@ -91,7 +91,7 @@ awaitable<void> heartbeat(Node& node) {
     for (;;) {
         cout << "heartbeat #1" << endl;
 
-        co_await node.heartbeat_await();
+        co_await node.heartbeat();
 
         cout << "heartbeat #2" << endl;
 

@@ -281,7 +281,7 @@ class Node {
         ++stats.gossip_rx;
     }
 
-    boost::asio::awaitable<std::string> read_remote(std::string addr,
+    boost::asio::awaitable<std::string> read_remote(std::string peer,
                                                     std::string key) {
 
         auto io = co_await boost::asio::this_coro::executor;
@@ -289,7 +289,11 @@ class Node {
         boost::asio::ip::tcp::resolver resolver(io);
         boost::asio::ip::tcp::socket socket(io);
 
-        auto ep = resolver.resolve("127.0.0.1", "55555");
+        auto p = peer.find(":");
+        auto addr = peer.substr(0, p);
+        auto port = peer.substr(p + 1);
+
+        auto ep = resolver.resolve(addr, port);
 
         async_connect(socket, ep,
                       [&socket](const boost::system::error_code& error,
@@ -314,7 +318,7 @@ class Node {
     // }
     // boost::asio::awaitable<std::string> test_b() { co_return "test"; }
 
-    boost::asio::awaitable<std::string> read_await(std::string key) {
+    boost::asio::awaitable<std::string> read(std::string key) {
 
         auto key_hash =
             static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
@@ -339,12 +343,11 @@ class Node {
                     co_return db[key_hash].second;
                 }
                 co_return "";
-            } else if (gd.is_alive(id)) {
+            } else {
                 /* forward to remote if alive */
                 ++stats.read_fwd;
-                std::string addr("localhost:55555");
-                std::string rv;
-                co_return co_await read_remote(std::move(addr), std::move(key));
+
+                co_return co_await read_remote(nodehash_lookup[id], key);
             }
 
             ++it;
@@ -353,45 +356,8 @@ class Node {
         co_return "";
     }
 
-    std::string read(std::string& key) {
-
-        auto key_hash =
-            static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
-
-        LookupEntry target = {key_hash, 0, 0};
-        auto it = lookup.lower_bound(target);
-
-        /* walk the ring until we find a working node */
-        while (true) {
-
-            /* wrap around if needed */
-            if (it == lookup.end())
-                it = lookup.begin();
-
-            /* parse */
-            auto [token, timestamp, id] = *it;
-            if (id == this->id) {
-                /* local */
-                ++stats.read;
-                if (db.count(key_hash)) {
-                    /* exists */
-                    return db[key_hash].second;
-                }
-                return "";
-            } else if (gd.is_alive(id)) {
-                /* forward to remote if alive */
-                ++stats.read_fwd;
-                return static_cast<Node*>(gd.lookup(id))->read(key);
-            }
-
-            ++it;
-        }
-        assert(0);
-        return "";
-    }
-
-    boost::asio::awaitable<void>
-    write_await(std::string& key, std::string& value, bool coordinator = true) {
+    boost::asio::awaitable<void> write(std::string& key, std::string& value,
+                                       bool coordinator = true) {
 
         auto key_hash =
             static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
@@ -459,54 +425,7 @@ class Node {
         /* not local - forward request */
     }
 
-    void write(std::string& key, std::string& value, bool coordinator = true) {
-
-        auto key_hash =
-            static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
-
-        if (!coordinator) {
-            /* not coordinator mode - commit the write directly */
-            ++stats.write;
-            db[key_hash] = {key, value};
-            return;
-        }
-
-        LookupEntry target = {key_hash, 0, 0};
-        auto it = lookup.lower_bound(target);
-
-        /* walk the ring until we find a working node */
-        int rf = replication_factor;
-        while (true) {
-
-            /* wrap around if needed */
-            if (it == lookup.end())
-                it = lookup.begin();
-
-            /* parse */
-            auto [token, timestamp, id] = *it;
-            if (id == this->id) {
-                /* local */
-                ++stats.write;
-                db[key_hash] = {key, value};
-            } else if (gd.is_alive(id)) {
-                /* forward to remote if alive */
-
-                ++stats.write_fwd;
-                static_cast<Node*>(gd.lookup(id))->write(key, value, false);
-
-                if (--rf <= 0)
-                    return;
-            }
-
-            ++it;
-        }
-
-        assert(0);
-
-        /* not local - forward request */
-    }
-
-    boost::asio::awaitable<void> heartbeat_await() {
+    boost::asio::awaitable<void> heartbeat() {
 
         /* collect all peers */
         std::vector<node_addr> peers;
