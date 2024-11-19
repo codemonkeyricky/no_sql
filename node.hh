@@ -578,12 +578,11 @@ class Node {
 
         /* read results */
         char payload[1024] = {};
-        std::size_t n = co_await socket.async_read_some(
-            boost::asio::buffer(payload), boost::asio::use_awaitable);
-        std::string sa(payload + 3, n - 3);
+        auto n = co_await socket.async_read_some(boost::asio::buffer(payload),
+                                                 boost::asio::use_awaitable);
 
-        co_return std::move(
-            deserialize<std::map<hash, std::pair<key, value>>>(sa));
+        co_return deserialize<std::map<hash, std::pair<key, value>>>(
+            std::string(payload + 3, n - 3));
     }
 
     const NodeMap& peers() const { return local_map; }
