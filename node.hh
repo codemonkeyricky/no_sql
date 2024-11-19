@@ -353,14 +353,15 @@ class Node {
         co_return "";
     }
 
-    boost::asio::awaitable<void>
-    write_remote(std::string& peer, std::string& key, std::string& value) {
+    boost::asio::awaitable<void> write_remote(const std::string& peer,
+                                              const std::string& key,
+                                              const std::string& value) {
         auto io = co_await boost::asio::this_coro::executor;
 
-        auto peer_addr = nodehash_lookup[id];
-        auto p = peer_addr.find(":");
-        auto addr = peer_addr.substr(0, p);
-        auto port = peer_addr.substr(p + 1);
+        const auto& peer_addr = nodehash_lookup[id];
+        const auto p = peer_addr.find(":");
+        const auto addr = peer_addr.substr(0, p);
+        const auto port = peer_addr.substr(p + 1);
 
         boost::asio::ip::tcp::resolver resolver(io);
         boost::asio::ip::tcp::socket socket(io);
@@ -368,11 +369,9 @@ class Node {
 
         async_connect(socket, ep,
                       [&socket](const boost::system::error_code& error,
-                                const boost::asio::ip::tcp::endpoint&) {
-                          /* forward read request to remote */
-                      });
+                                const boost::asio::ip::tcp::endpoint&) {});
 
-        auto payload = "w:" + key + "=" + value;
+        const auto payload = "w:" + key + "=" + value;
         co_await async_write(socket,
                              boost::asio::buffer(payload, payload.size()),
                              boost::asio::use_awaitable);

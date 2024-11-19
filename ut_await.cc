@@ -22,20 +22,19 @@ using namespace std;
 
 awaitable<void> rx_process(Node& node, tcp::socket socket) {
 
-    char payload[1024];
     for (;;) {
+        char data[1024] = {};
         std::size_t n = co_await socket.async_read_some(
-            boost::asio::buffer(payload), boost::asio::use_awaitable);
+            boost::asio::buffer(data), boost::asio::use_awaitable);
 
-        string pl = string(payload, n);
-        auto p = pl.find(":");
+        string payload = string(data, n);
+        auto p = payload.find(":");
 
-        auto cmd = pl.substr(0, p);
-        string value;
+        auto cmd = payload.substr(0, p);
         if (cmd == "r") {
             /* read */
-            auto key = string(payload + 2, n - 2);
-            value = co_await node.read(key);
+            auto key = string(data + 2, n - 2);
+            auto value = co_await node.read(key);
             auto resp = "ra:" + value;
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
@@ -45,9 +44,8 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
 
             /* write */
 
-            auto kv = string(payload + 2, n - 2);
+            auto kv = string(data + 2, n - 2);
             auto p = kv.find("=");
-
             auto k = kv.substr(0, p);
             auto v = kv.substr(p + 1);
 
@@ -59,7 +57,7 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                                  boost::asio::use_awaitable);
         } else if (cmd == "g") {
             /* gossip */
-            auto gossip = string(payload + 2, n - 2);
+            auto gossip = payload.substr(p + 1);
             node.gossip(gossip);
             auto resp = "ga:" + gossip;
             co_await async_write(socket,
