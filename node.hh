@@ -400,7 +400,8 @@ class Node {
                              boost::asio::use_awaitable);
     }
 
-    boost::asio::awaitable<void> write(std::string& key, std::string& value,
+    boost::asio::awaitable<void> write(const std::string& key,
+                                       const std::string& value,
                                        bool coordinator = true) {
 
         auto key_hash =
@@ -504,15 +505,6 @@ class Node {
 
                 /* TODO: account for peer death */
 
-                // if (gd.is_alive(kk)) {
-                //     static_cast<Node*>(gd.lookup(kk))->gossip(local_map);
-                //     peers.erase(peers.begin() + kk);
-                //     --k;
-                //     ++stats.gossip_tx;
-                // } else {
-                //     /* remove dead peer */
-                //     peers.erase(peers.begin() + kk);
-                // }
             } catch (std::exception& e) {
                 std::cout << self << ":" << "heartbeat() - failed to connect!"
                           << std::endl;
