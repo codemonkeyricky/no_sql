@@ -244,7 +244,7 @@ class Node {
 
     ~Node() {}
 
-    /* stream data - inclusive i / exclusive j */
+    /* stream data: [i, j) */
     std::map<hash, std::pair<key, value>> stream(hash i, hash j) {
 
         std::map<hash, std::pair<key, value>> rv;
@@ -254,6 +254,13 @@ class Node {
         }
 
         return rv;
+    }
+
+    template <typename T> std::string serialize(T&& data) {
+        std::ostringstream oss;
+        boost::archive::text_oarchive oa(oss);
+        oa << data;
+        return std::move(oss.str());
     }
 
     void gossip(std::string& gossip) {
@@ -271,10 +278,10 @@ class Node {
         /* communicated retired token in next gossip round */
         retire_token();
 
-        std::ostringstream oss;
-        boost::archive::text_oarchive oa(oss);
-        oa << local_map; // Serialize the data
-        gossip = oss.str();
+        // std::ostringstream oss;
+        // boost::archive::text_oarchive oa(oss);
+        // oa << local_map; // Serialize the data
+        gossip = serialize(local_map);
 
         /* received gossip */
         ++stats.gossip_rx;
@@ -458,11 +465,7 @@ class Node {
                               /* forward read request to remote */
                           });
 
-            std::ostringstream oss;
-            boost::archive::text_oarchive oa(oss);
-            oa << local_map; // Serialize the data
-
-            auto payload = "g:" + oss.str();
+            auto payload = "g:" + serialize(local_map);
             co_await async_write(socket,
                                  boost::asio::buffer(payload, payload.size()),
                                  boost::asio::use_awaitable);
