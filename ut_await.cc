@@ -125,14 +125,16 @@ int main() {
     Node node("127.0.0.1:5555");
 
     signals.async_wait([&](auto, auto) { io_context.stop(); });
-
     co_spawn(io_context, listener(node), detached);
     co_spawn(io_context, heartbeat(node, 0), detached);
 
     Node node2("127.0.0.1:5556", "127.0.0.1:5555");
-
     co_spawn(io_context, listener(node2), detached);
     co_spawn(io_context, heartbeat(node2, 100), detached);
+
+    Node node3("127.0.0.1:5557", "127.0.0.1:5559");
+    co_spawn(io_context, listener(node3), detached);
+    co_spawn(io_context, heartbeat(node3, 100), detached);
 
     io_context.run();
 
