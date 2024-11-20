@@ -246,6 +246,8 @@ class Node {
         }
     }
 
+    Node(const Node&) = delete;
+
     ~Node() {}
 
     /* stream data: [i, j) */

@@ -102,7 +102,7 @@ awaitable<void> listener(Node& node) {
     }
 }
 
-awaitable<void> heartbeat(vector<Node*>& nodes) {
+awaitable<void> heartbeat(vector<shared_ptr<Node>>& nodes) {
     boost::asio::steady_timer timer(co_await this_coro::executor);
     auto io = co_await this_coro::executor;
 
@@ -125,14 +125,32 @@ int main() {
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
 
-        Node node("127.0.0.1:5555"); // , "127.0.0.1:5557");
-        co_spawn(io_context, listener(node), detached);
+        constexpr int NODES = 2;
 
-        Node node2("127.0.0.1:5556", "127.0.0.1:5555");
-        co_spawn(io_context, listener(node2), detached);
+        string addr = "127.0.0.1";
+        int port = 5555;
+        string seed;
+        vector<shared_ptr<Node>> nodes;
+        for (auto i = 0; i < NODES; ++i) {
 
-        vector<Node*> nodes = {&node, &node2};
+            string addr_port = addr + ":" + to_string(port++);
+            nodes.push_back(std::shared_ptr<Node>(new Node(addr_port, seed)));
+            if (seed == "") {
+                seed = addr_port;
+            }
+            co_spawn(io_context, listener(*nodes.back()), detached);
+        }
+
         co_spawn(io_context, heartbeat(nodes), detached);
+
+        // Node node("127.0.0.1:5555"); // , "127.0.0.1:5557");
+        // co_spawn(io_context, listener(node), detached);
+
+        // Node node2("127.0.0.1:5556", "127.0.0.1:5555");
+        // co_spawn(io_context, listener(node2), detached);
+
+        // vector<Node*> nodes = {&node, &node2};
+        // co_spawn(io_context, heartbeat(nodes), detached);
 
         // Node node3("127.0.0.1:5557", "127.0.0.1:5559");
         // co_spawn(io_context, listener(node3), detached);
