@@ -108,40 +108,37 @@ awaitable<void> heartbeat(Node& node, int start_delay_ms) {
     co_await timer.async_wait(use_awaitable);
 
     for (;;) {
-        cout << "heartbeat #1" << endl;
-
         co_await node.heartbeat();
-
-        cout << "heartbeat #2" << endl;
 
         /* heartbeat every second */
         timer.expires_at(std::chrono::steady_clock::now() +
                          std::chrono::seconds(1));
         co_await timer.async_wait(use_awaitable);
-
-        cout << "heartbeat #3" << endl;
     }
 }
 
 int main() {
-    boost::asio::io_context io_context(1);
-    boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
 
-    Node node("127.0.0.1:5555"); // , "127.0.0.1:5557");
+    thread co([] {
+        boost::asio::io_context io_context(1);
+        boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
+        Node node("127.0.0.1:5555"); // , "127.0.0.1:5557");
+        signals.async_wait([&](auto, auto) { io_context.stop(); });
+        co_spawn(io_context, listener(node), detached);
+        co_spawn(io_context, heartbeat(node, 0), detached);
 
-    signals.async_wait([&](auto, auto) { io_context.stop(); });
-    co_spawn(io_context, listener(node), detached);
-    co_spawn(io_context, heartbeat(node, 0), detached);
+        Node node2("127.0.0.1:5556", "127.0.0.1:5555");
+        co_spawn(io_context, listener(node2), detached);
+        co_spawn(io_context, heartbeat(node2, 100), detached);
 
-    Node node2("127.0.0.1:5556", "127.0.0.1:5555");
-    co_spawn(io_context, listener(node2), detached);
-    co_spawn(io_context, heartbeat(node2, 100), detached);
+        // Node node3("127.0.0.1:5557", "127.0.0.1:5559");
+        // co_spawn(io_context, listener(node3), detached);
+        // co_spawn(io_context, heartbeat(node3, 100), detached);
 
-    // Node node3("127.0.0.1:5557", "127.0.0.1:5559");
-    // co_spawn(io_context, listener(node3), detached);
-    // co_spawn(io_context, heartbeat(node3, 100), detached);
+        io_context.run();
+    });
 
-    io_context.run();
+    co.join();
 
     cout << "### " << endl;
 }
