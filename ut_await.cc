@@ -80,6 +80,8 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
+        } else if (cmd == "st") {
+            // auto resp = "sta:" + node.serialize(node.stream(i, j));
         }
     }
     co_return;
@@ -100,20 +102,19 @@ awaitable<void> listener(Node& node) {
     }
 }
 
-awaitable<void> heartbeat(Node& node, int start_delay_ms) {
+awaitable<void> heartbeat(vector<Node*>& nodes) {
     boost::asio::steady_timer timer(co_await this_coro::executor);
-
-    timer.expires_at(std::chrono::steady_clock::now() +
-                     std::chrono::milliseconds(start_delay_ms));
-    co_await timer.async_wait(use_awaitable);
+    auto io = co_await this_coro::executor;
 
     for (;;) {
-        co_await node.heartbeat();
+
+        for (auto& n : nodes) {
+            co_await n->heartbeat();
+        }
 
         /* heartbeat every second */
         timer.expires_at(std::chrono::steady_clock::now() +
                          std::chrono::seconds(1));
-        co_await timer.async_wait(use_awaitable);
     }
 }
 
@@ -122,14 +123,16 @@ int main() {
     thread co([] {
         boost::asio::io_context io_context(1);
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
-        Node node("127.0.0.1:5555"); // , "127.0.0.1:5557");
         signals.async_wait([&](auto, auto) { io_context.stop(); });
+
+        Node node("127.0.0.1:5555"); // , "127.0.0.1:5557");
         co_spawn(io_context, listener(node), detached);
-        co_spawn(io_context, heartbeat(node, 0), detached);
 
         Node node2("127.0.0.1:5556", "127.0.0.1:5555");
         co_spawn(io_context, listener(node2), detached);
-        co_spawn(io_context, heartbeat(node2, 100), detached);
+
+        vector<Node*> nodes = {&node, &node2};
+        co_spawn(io_context, heartbeat(nodes), detached);
 
         // Node node3("127.0.0.1:5557", "127.0.0.1:5559");
         // co_spawn(io_context, listener(node3), detached);

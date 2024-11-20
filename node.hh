@@ -207,7 +207,7 @@ class Node {
                     /* someone else owns this now - I no longer own this token
                      */
                     my_token = my_node.tokens.erase(my_token);
-                    my_node.timestamp = t.get();
+                    my_node.timestamp = current_time_ms();
 
                     /* update to my node will be communicated in next round of
                      * gossip */
@@ -278,7 +278,7 @@ class Node {
 
     void gossip_rx(std::string& gossip) {
 
-        std::cout << self << ":" << "gossip invoked!" << std::endl;
+        // std::cout << self << ":" << "gossip invoked!" << std::endl;
 
         /* fetch remote_map */
         auto remote_map = deserialize<NodeMap>(gossip);
@@ -299,6 +299,8 @@ class Node {
 
     boost::asio::awaitable<void> gossip_tx() {
 
+        // std::cout << self << ":" << "gossip_tx() - #1" << std::endl;
+
         /* collect all peers */
         std::vector<node_addr> peers;
         for (auto& peer : local_map.nodes) {
@@ -312,6 +314,7 @@ class Node {
         int k = 1;
 
         auto io = co_await boost::asio::this_coro::executor;
+        // std::cout << self << ":" << "gossip_tx() - #2" << std::endl;
         while (k && peers.size()) {
             auto kk = peers[rand() % peers.size()];
 
@@ -330,8 +333,10 @@ class Node {
                 [&socket, &err_code](const boost::system::error_code& error,
                                      const boost::asio::ip::tcp::endpoint&) {
                     err_code = error;
+                    // std::cout << "error = " << error << std::endl;
                 });
 
+            // std::cout << self << ":" << "gossip_tx() - #3" << std::endl;
             try {
 
                 auto payload = "g:" + serialize(local_map);
@@ -341,6 +346,7 @@ class Node {
 
                 /* read results */
 
+                // std::cout << self << ":" << "gossip_tx() - #4" << std::endl;
                 char rx_payload[1024] = {};
                 std::size_t n = co_await socket.async_read_some(
                     boost::asio::buffer(rx_payload),
