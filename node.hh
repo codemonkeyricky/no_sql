@@ -190,6 +190,7 @@ class Node {
             }
         }
     }
+
     /* retire local tokens owned by others  */
     auto retire_token() {
 
@@ -275,7 +276,7 @@ class Node {
         return std::move(rv);
     }
 
-    void gossip(std::string& gossip) {
+    void gossip_rx(std::string& gossip) {
 
         std::cout << self << ":" << "gossip invoked!" << std::endl;
 
@@ -284,8 +285,6 @@ class Node {
 
         /* update local_map */
         local_map = remote_map = remote_map + local_map;
-
-        /* update local lookup based on updated local map */
         update_lookup();
 
         /* communicated retired token in next gossip round */
@@ -296,6 +295,107 @@ class Node {
 
         /* received gossip */
         ++stats.gossip_rx;
+    }
+
+    boost::asio::awaitable<void> gossip_tx() {
+
+        /* collect all peers */
+        std::vector<node_addr> peers;
+        for (auto& peer : local_map.nodes) {
+            /* exclude ourselves */
+            if (peer.first != self) {
+                peers.push_back(peer.first);
+            }
+        }
+
+        /* TODO: pick 3 peers at random to gossip */
+        int k = 1;
+
+        auto io = co_await boost::asio::this_coro::executor;
+        while (k && peers.size()) {
+            auto kk = peers[rand() % peers.size()];
+
+            auto peer_addr = kk;
+            auto p = peer_addr.find(":");
+            auto addr = peer_addr.substr(0, p);
+            auto port = peer_addr.substr(p + 1);
+
+            boost::asio::ip::tcp::resolver resolver(io);
+            boost::asio::ip::tcp::socket socket(io);
+            auto ep = resolver.resolve(addr, port);
+
+            boost::system::error_code err_code;
+            async_connect(
+                socket, ep,
+                [&socket, &err_code](const boost::system::error_code& error,
+                                     const boost::asio::ip::tcp::endpoint&) {
+                    err_code = error;
+                });
+
+            try {
+
+                auto payload = "g:" + serialize(local_map);
+                co_await async_write(
+                    socket, boost::asio::buffer(payload, payload.size()),
+                    boost::asio::use_awaitable);
+
+                /* read results */
+
+                char rx_payload[1024] = {};
+                std::size_t n = co_await socket.async_read_some(
+                    boost::asio::buffer(rx_payload),
+                    boost::asio::use_awaitable);
+
+                auto serialized_data = std::string(rx_payload + 3, n - 3);
+                auto remote_map = deserialize<NodeMap>(serialized_data);
+                local_map = remote_map = local_map + remote_map;
+                update_lookup();
+
+                /* TODO: account for peer death */
+
+            } catch (std::exception& e) {
+                std::cout << self << ":" << "heartbeat() - failed to connect!"
+                          << std::endl;
+            }
+            --k;
+        }
+
+        if (local_map.nodes[self].status == NodeMap::Node::Joining) {
+
+            auto& my_node = local_map.nodes[self];
+
+            /* take over token, token-1, token-2, .... ptoken +1*/
+
+            if (lookup.size()) {
+
+                for (auto& my_token : my_node.tokens) {
+
+                    std::array<uint64_t, 3> target = {my_token};
+                    auto it = lookup.lower_bound(target);
+                    if (it == lookup.end()) {
+                        it = lookup.begin();
+                    }
+                    auto [token, timestamp, id] = *it;
+
+                    Lookup::iterator p;
+                    if (it == lookup.begin())
+                        p = prev(lookup.end());
+                    else
+                        p = prev(it);
+
+                    auto [ptoken, pts, pid] = *p;
+
+                    auto remote_db = co_await stream_remote(nodehash_lookup[id],
+                                                            ptoken + 1, token);
+
+                    /* insert into local db */
+                    db.insert(remote_db.begin(), remote_db.end());
+                }
+            }
+
+            local_map.nodes[self].status = NodeMap::Node::Live;
+            local_map.nodes[self].timestamp = current_time_ms();
+        }
     }
 
     boost::asio::awaitable<std::string> read_remote(std::string& peer,
@@ -452,102 +552,8 @@ class Node {
 
     boost::asio::awaitable<void> heartbeat() {
 
-        /* collect all peers */
-        std::vector<node_addr> peers;
-        for (auto& peer : local_map.nodes) {
-            /* exclude ourselves */
-            if (peer.first != self) {
-                peers.push_back(peer.first);
-            }
-        }
-
-        /* pick 3 peers at random to gossip */
-        int k = 1;
-
-        auto io = co_await boost::asio::this_coro::executor;
-        while (k && peers.size()) {
-            auto kk = peers[rand() % peers.size()];
-
-            auto peer_addr = kk;
-            auto p = peer_addr.find(":");
-            auto addr = peer_addr.substr(0, p);
-            auto port = peer_addr.substr(p + 1);
-
-            boost::asio::ip::tcp::resolver resolver(io);
-            boost::asio::ip::tcp::socket socket(io);
-            auto ep = resolver.resolve(addr, port);
-
-            boost::system::error_code err_code;
-            async_connect(
-                socket, ep,
-                [&socket, &err_code](const boost::system::error_code& error,
-                                     const boost::asio::ip::tcp::endpoint&) {
-                    err_code = error;
-                });
-
-            try {
-
-                auto payload = "g:" + serialize(local_map);
-                co_await async_write(
-                    socket, boost::asio::buffer(payload, payload.size()),
-                    boost::asio::use_awaitable);
-
-                /* read results */
-
-                char rx_payload[1024] = {};
-                std::size_t n = co_await socket.async_read_some(
-                    boost::asio::buffer(rx_payload),
-                    boost::asio::use_awaitable);
-
-                auto serialized_data = std::string(rx_payload + 3, n - 3);
-                local_map = deserialize<NodeMap>(serialized_data);
-                update_lookup();
-
-                /* TODO: account for peer death */
-
-            } catch (std::exception& e) {
-                std::cout << self << ":" << "heartbeat() - failed to connect!"
-                          << std::endl;
-            }
-            --k;
-        }
-
-        if (local_map.nodes[self].status == NodeMap::Node::Joining) {
-
-            auto& my_node = local_map.nodes[self];
-
-            /* take over token, token-1, token-2, .... ptoken +1*/
-
-            if (lookup.size()) {
-
-                for (auto& my_token : my_node.tokens) {
-
-                    std::array<uint64_t, 3> target = {my_token};
-                    auto it = lookup.lower_bound(target);
-                    if (it == lookup.end()) {
-                        it = lookup.begin();
-                    }
-                    auto [token, timestamp, id] = *it;
-
-                    Lookup::iterator p;
-                    if (it == lookup.begin())
-                        p = prev(lookup.end());
-                    else
-                        p = prev(it);
-
-                    auto [ptoken, pts, pid] = *p;
-
-                    auto remote_db = co_await stream_remote(nodehash_lookup[id],
-                                                            ptoken + 1, token);
-
-                    /* insert into local db */
-                    db.insert(remote_db.begin(), remote_db.end());
-                }
-            }
-
-            local_map.nodes[self].status = NodeMap::Node::Live;
-            local_map.nodes[self].timestamp = current_time_ms();
-        }
+        /* gossip during heartbeat */
+        co_await gossip_tx();
     }
 
     boost::asio::awaitable<std::map<hash, std::pair<key, value>>>

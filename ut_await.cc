@@ -65,7 +65,7 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
         } else if (cmd == "g") {
             /* gossip */
             auto gossip = payload.substr(p + 1);
-            node.gossip(gossip);
+            node.gossip_rx(gossip);
             auto resp = "ga:" + gossip;
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
