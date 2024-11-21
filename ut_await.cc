@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <queue>
 #include <unordered_map>
 
 #include <boost/algorithm/string.hpp>
@@ -173,6 +174,7 @@ awaitable<void> listener(Node& node) {
         co_spawn(executor, rx_process(node, std::move(socket)), detached);
     }
 }
+static queue<array<string, 2>> pending;
 
 awaitable<void> heartbeat(vector<shared_ptr<Node>>& nodes) {
     boost::asio::steady_timer timer(co_await this_coro::executor);
@@ -184,16 +186,25 @@ awaitable<void> heartbeat(vector<shared_ptr<Node>>& nodes) {
             co_await n->heartbeat();
         }
 
+        while (pending.size()) {
+
+            auto [server, seed] = pending.front();
+            pending.pop();
+
+            nodes.push_back(std::shared_ptr<Node>(new Node(server, seed)));
+            co_spawn(io, listener(*nodes.back()), detached);
+        }
+
         /* heartbeat every second */
         timer.expires_at(std::chrono::steady_clock::now() +
                          std::chrono::seconds(1));
     }
 }
 
+static int port = 6000;
 awaitable<void> cp_process(vector<shared_ptr<Node>>& nodes,
                            tcp::socket socket) {
     auto executor = co_await this_coro::executor;
-    int port = 6000;
     for (;;) {
 
         char data[1024] = {};
@@ -206,9 +217,8 @@ awaitable<void> cp_process(vector<shared_ptr<Node>>& nodes,
         if (cmd == "an") {
             /* TODO: parse address */
             auto seed = payload.substr(p + 1);
-            nodes.push_back(std::shared_ptr<Node>(
-                new Node("127.0.0.1:" + to_string(port++), "127.0.0.1:5555")));
-            co_spawn(executor, listener(*nodes.back()), detached);
+
+            pending.push({"127.0.0.1:" + to_string(port++), "127.0.0.1:5555"});
 
             auto resp = "ana:" + seed;
             co_await async_write(socket,
@@ -242,7 +252,8 @@ int main() {
         int port = 5555;
         string seed;
         vector<shared_ptr<Node>> nodes;
-        nodes.reserve(128); /* TODO: removing this cause crash during node add */
+        // nodes.reserve(
+        //     128); /* TODO: removing this cause crash during node add */
         for (auto i = 0; i < NODES; ++i) {
 
             string addr_port = addr + ":" + to_string(port++);
