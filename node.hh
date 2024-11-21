@@ -33,8 +33,8 @@ using hash = uint64_t;
 using node_addr = std::string;
 using node_id = uint64_t;
 using Tokens = std::set<hash>;
-using LookupEntry = std::array<uint64_t, 3>;
-using Lookup = std::set<LookupEntry>; ///< token / timestamp / node_id
+using LookupEntry = std::array<uint64_t, 3>; ///< token / timestamp / node_id
+using Lookup = std::set<LookupEntry>;
 
 class Time {
 
@@ -622,5 +622,13 @@ class Node final {
         default:
             assert(0);
         }
+    }
+
+    std::string get_ring_view() const {
+        std::string rv;
+        for (const auto& [token, timestamp, id_hash] : lookup) {
+            rv += std::to_string(token) + ":" + nodehash_lookup.at(id_hash) + ";";
+        }
+        return rv;
     }
 };

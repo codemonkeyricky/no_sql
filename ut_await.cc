@@ -82,7 +82,12 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                                  boost::asio::use_awaitable);
         } else if (cmd == "st") {
             auto resp = "sta:" + node.get_status();
-co_await async_write(socket,
+            co_await async_write(socket,
+                                 boost::asio::buffer(resp.c_str(), resp.size()),
+                                 boost::asio::use_awaitable);
+        } else if (cmd == "ring") {
+            auto resp = "ring_ack:" + node.get_ring_view();
+            co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
         }
