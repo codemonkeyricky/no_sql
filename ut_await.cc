@@ -125,7 +125,7 @@ int main() {
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
 
-        constexpr int NODES = 2;
+        constexpr int NODES = 5;
 
         string addr = "127.0.0.1";
         int port = 5555;
@@ -142,19 +142,6 @@ int main() {
         }
 
         co_spawn(io_context, heartbeat(nodes), detached);
-
-        // Node node("127.0.0.1:5555"); // , "127.0.0.1:5557");
-        // co_spawn(io_context, listener(node), detached);
-
-        // Node node2("127.0.0.1:5556", "127.0.0.1:5555");
-        // co_spawn(io_context, listener(node2), detached);
-
-        // vector<Node*> nodes = {&node, &node2};
-        // co_spawn(io_context, heartbeat(nodes), detached);
-
-        // Node node3("127.0.0.1:5557", "127.0.0.1:5559");
-        // co_spawn(io_context, listener(node3), detached);
-        // co_spawn(io_context, heartbeat(node3, 100), detached);
 
         io_context.run();
     });

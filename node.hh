@@ -131,7 +131,7 @@ class Partitioner {
     uint64_t getRange() const { return range; }
 };
 
-class Node {
+class Node final {
 
   public:
     struct Stats {
@@ -246,7 +246,8 @@ class Node {
         }
     }
 
-    Node(const Node&) = delete;
+    Node(const Node&) = delete; /* cannot be copied */
+    Node(Node&&) = delete;
 
     ~Node() {}
 
