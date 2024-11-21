@@ -81,7 +81,10 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
         } else if (cmd == "st") {
-            // auto resp = "sta:" + node.serialize(node.stream(i, j));
+            auto resp = "sta:" + node.get_status();
+co_await async_write(socket,
+                                 boost::asio::buffer(resp.c_str(), resp.size()),
+                                 boost::asio::use_awaitable);
         }
     }
     co_return;
@@ -119,13 +122,12 @@ awaitable<void> heartbeat(vector<shared_ptr<Node>>& nodes) {
 }
 
 int main() {
+    constexpr int NODES = 5;
 
-    thread co([] {
+    thread db_instance([] {
         boost::asio::io_context io_context(1);
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
-
-        constexpr int NODES = 5;
 
         string addr = "127.0.0.1";
         int port = 5555;
@@ -146,7 +148,11 @@ int main() {
         io_context.run();
     });
 
-    co.join();
+    /* test code here */
+
+    /* wait for cluster ready */
+
+    db_instance.join();
 
     cout << "### " << endl;
 }

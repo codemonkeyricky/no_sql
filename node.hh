@@ -605,4 +605,22 @@ class Node final {
     const node_id get_id() const { return id; }
     const node_addr get_addr() const { return self; }
     const Stats get_stats() const { return stats; }
+    const std::string get_status() const {
+        return status_to_string(local_map.nodes.at(self).status);
+    }
+
+    constexpr std::string
+    status_to_string(const NodeMap::Node::Status& status) const {
+
+        switch (status) {
+        case NodeMap::Node::Status::Joining:
+            return "Joining";
+        case NodeMap::Node::Status::Live:
+            return "Live";
+        case NodeMap::Node::Status::Down:
+            return "Down";
+        default:
+            assert(0);
+        }
+    }
 };
