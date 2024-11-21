@@ -2,15 +2,18 @@
 
 #include "node.hh"
 #include <chrono>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 
+#include <boost/algorithm/string.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/filesystem.hpp>
 #include <string>
 #include <utility>
 
@@ -97,6 +100,37 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                                                   : (token + 1e9 + 7 - ptoken);
                 auto s = hash_lookup.at(id_hash);
                 bars.push_back(make_pair(s, range));
+            }
+
+            {
+                string filename("web/ring_fmt.html");
+
+                // Open the file for reading
+                std::ifstream inFile(filename);
+                assert(inFile);
+
+                // Read the file content into a string
+                std::string fileContent(
+                    (std::istreambuf_iterator<char>(inFile)),
+                    std::istreambuf_iterator<char>());
+                inFile.close();
+
+                // Find and replace the target line with the replacement
+                string targetLine = "LINE_TO_REPLACE";
+                string replacement = "blah";
+                if (fileContent.find(targetLine) != std::string::npos) {
+                    boost::algorithm::replace_all(fileContent, targetLine,
+                                                  replacement);
+                } else {
+                    assert(0);
+                }
+
+                // Open the file for writing and overwrite the content
+                std::ofstream outFile("web/ring.html");
+                assert(outFile);
+
+                outFile << fileContent;
+                outFile.close();
             }
 
             auto resp = "ring_ack:" + node.get_status();
