@@ -114,8 +114,8 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
             for (auto& bar : bars) {
                 auto p = bar.first.find(":");
                 auto name = bar.first.substr(p + 1);
-                replacement += name + to_string(cnt[name]++) + ":" +
-                               to_string(bar.second) + ",";
+                replacement += "\"" + name + "-" + to_string(cnt[name]++) +
+                               "\"" + ":" + to_string(bar.second) + ",";
             }
             replacement += "}";
 
@@ -191,7 +191,7 @@ awaitable<void> heartbeat(vector<shared_ptr<Node>>& nodes) {
 }
 
 int main() {
-    constexpr int NODES = 5;
+    constexpr int NODES = 10;
 
     thread db_instance([] {
         boost::asio::io_context io_context(1);
