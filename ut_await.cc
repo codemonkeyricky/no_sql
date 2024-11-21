@@ -12,6 +12,7 @@
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/write.hpp>
 #include <string>
+#include <utility>
 
 using boost::asio::awaitable;
 using boost::asio::co_spawn;
@@ -86,7 +87,19 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
         } else if (cmd == "ring") {
-            auto resp = "ring_ack:" + node.get_ring_view();
+            const auto& [lookup, hash_lookup] = node.get_ring_view();
+            vector<pair<const string, const uint64_t>> bars;
+            for (auto it = lookup.begin(); it != lookup.end(); ++it) {
+                const auto [token, timestamp, id_hash] = *it;
+                auto p = it == lookup.begin() ? prev(lookup.end()) : prev(it);
+                auto [ptoken, skip, skip1] = *p;
+                auto range = it != lookup.begin() ? (token - ptoken)
+                                                  : (token + 1e9 + 7 - ptoken);
+                auto s = hash_lookup.at(id_hash);
+                bars.push_back(make_pair(s, range));
+            }
+
+            auto resp = "ring_ack:" + node.get_status();
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);

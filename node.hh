@@ -10,6 +10,7 @@
 #include <string>
 #include <sys/types.h>
 #include <thread>
+#include <tuple>
 #include <unordered_map>
 #include <vector>
 
@@ -35,6 +36,7 @@ using node_id = uint64_t;
 using Tokens = std::set<hash>;
 using LookupEntry = std::array<uint64_t, 3>; ///< token / timestamp / node_id
 using Lookup = std::set<LookupEntry>;
+using HashLookup = std::unordered_map<uint64_t, std::string>;
 
 class Time {
 
@@ -152,7 +154,7 @@ class Node final {
     std::map<hash, std::pair<key, value>> db;
     node_id id;
     Stats stats;
-    std::unordered_map<uint64_t, std::string> nodehash_lookup;
+    HashLookup nodehash_lookup;
     int replication_factor; /* replication factor */
     node_addr self;
 
@@ -624,11 +626,7 @@ class Node final {
         }
     }
 
-    std::string get_ring_view() const {
-        std::string rv;
-        for (const auto& [token, timestamp, id_hash] : lookup) {
-            rv += std::to_string(token) + ":" + nodehash_lookup.at(id_hash) + ";";
-        }
-        return rv;
+    std::tuple<const Lookup&, const HashLookup&> get_ring_view() const {
+        return std::make_tuple(std::ref(lookup), std::ref(nodehash_lookup));
     }
 };
