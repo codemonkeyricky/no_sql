@@ -190,8 +190,48 @@ awaitable<void> heartbeat(vector<shared_ptr<Node>>& nodes) {
     }
 }
 
+awaitable<void> cp_process(vector<shared_ptr<Node>>& nodes,
+                           tcp::socket socket) {
+    auto executor = co_await this_coro::executor;
+    int port = 6000;
+    for (;;) {
+
+        char data[1024] = {};
+        std::size_t n = co_await socket.async_read_some(
+            boost::asio::buffer(data), boost::asio::use_awaitable);
+
+        string payload = string(data, n);
+        auto p = payload.find(":");
+        auto cmd = payload.substr(0, p);
+        if (cmd == "an") {
+            /* TODO: parse address */
+            auto seed = payload.substr(p + 1);
+            nodes.push_back(std::shared_ptr<Node>(
+                new Node("127.0.0.1:" + to_string(port++), "127.0.0.1:5555")));
+            co_spawn(executor, listener(*nodes.back()), detached);
+
+            auto resp = "ana:" + seed;
+            co_await async_write(socket,
+                                 boost::asio::buffer(resp.c_str(), resp.size()),
+                                 boost::asio::use_awaitable);
+        }
+    }
+    co_return;
+}
+
+awaitable<void> cp_listener(vector<shared_ptr<Node>>& nodes) {
+    auto executor = co_await this_coro::executor;
+
+    tcp::acceptor acceptor(executor, {tcp::v4(), 5000});
+    for (;;) {
+        auto socket =
+            co_await acceptor.async_accept(boost::asio::use_awaitable);
+        co_spawn(executor, cp_process(nodes, std::move(socket)), detached);
+    }
+}
+
 int main() {
-    constexpr int NODES = 10;
+    constexpr int NODES = 2;
 
     thread db_instance([] {
         boost::asio::io_context io_context(1);
@@ -202,6 +242,7 @@ int main() {
         int port = 5555;
         string seed;
         vector<shared_ptr<Node>> nodes;
+        nodes.reserve(128); /* TODO: removing this cause crash during node add */
         for (auto i = 0; i < NODES; ++i) {
 
             string addr_port = addr + ":" + to_string(port++);
@@ -213,6 +254,8 @@ int main() {
         }
 
         co_spawn(io_context, heartbeat(nodes), detached);
+
+        co_spawn(io_context, cp_listener(nodes), detached);
 
         io_context.run();
     });
