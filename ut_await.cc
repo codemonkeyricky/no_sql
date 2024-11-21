@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <unordered_map>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/co_spawn.hpp>
@@ -100,7 +101,23 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                                                   : (token + 1e9 + 7 - ptoken);
                 auto s = hash_lookup.at(id_hash);
                 bars.push_back(make_pair(s, range));
+
+                /*
+                 * format to:
+                 * var data = {a: 9, b: 20, c:30, d:8, e:12, f:3, g:7, h:14}
+                 */
             }
+
+            unordered_map<string, int> cnt;
+
+            string replacement = "var data = {";
+            for (auto& bar : bars) {
+                auto p = bar.first.find(":");
+                auto name = bar.first.substr(p + 1);
+                replacement += name + to_string(cnt[name]++) + ":" +
+                               to_string(bar.second) + ",";
+            }
+            replacement += "}";
 
             {
                 string filename("web/ring_fmt.html");
@@ -117,7 +134,7 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
 
                 // Find and replace the target line with the replacement
                 string targetLine = "LINE_TO_REPLACE";
-                string replacement = "blah";
+                // string replacement = "blah";
                 if (fileContent.find(targetLine) != std::string::npos) {
                     boost::algorithm::replace_all(fileContent, targetLine,
                                                   replacement);
