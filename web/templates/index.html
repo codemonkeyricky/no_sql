@@ -22,8 +22,8 @@
 
     <script>
         // Dimensions and margins
-        var width = 450,
-            height = 450,
+        var width = 800,
+            height = 800,
             margin = 80;
 
         // Radius
@@ -67,8 +67,12 @@
 
             // Pie generator to process the data in received order
             var pie = d3.pie()
-                .value(d => d[1]) // Use the value for the pie slice size
-                .sort(null); // Disable sorting entirely to preserve order
+                .value(d => d[1])
+                .sort(function (a, b) {
+                    var prefixA = parseInt(a[0].split('-')[0], 10);
+                    var prefixB = parseInt(b[0].split('-')[0], 10);
+                    return prefixA - prefixB;
+                });
 
             var data_ready = pie(dataArray);
 
