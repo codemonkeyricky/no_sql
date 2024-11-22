@@ -112,11 +112,14 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
             unordered_map<string, int> cnt;
 
             string replacement = "{";
+            int k = 0;
             for (auto& bar : bars) {
                 auto p = bar.first.find(":");
                 auto name = bar.first.substr(p + 1);
-                replacement += "\"" + name + "-" + to_string(cnt[name]++) +
-                               "\"" + ":" + to_string(bar.second) + ",";
+                /* <index>-<node>-<instance>*/
+                replacement += "\"" + to_string(k++) + "-" + name + "-" +
+                               to_string(cnt[name]++) + "\"" + ":" +
+                               to_string(bar.second) + ",";
             }
             replacement += "}";
 

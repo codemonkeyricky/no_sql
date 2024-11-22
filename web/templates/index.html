@@ -44,7 +44,7 @@
 
         // Function to get or assign a color for a prefix
         function getColor(label) {
-            const prefix = label.split('-')[0]; // Extract prefix, e.g., "5555" from "5555-0"
+            const prefix = label.split('-')[1]; // Extract prefix, e.g., "5555" from "5555-0"
             if (!colorMapping[prefix]) {
                 colorMapping[prefix] = colorScale(colorIndex++);
             }
@@ -62,13 +62,13 @@
 
         // Function to update the chart
         function update(data) {
-            // Convert the data object to an array of entries to maintain order
+            // Convert the data object to an array of entries to maintain received order
             var dataArray = Object.entries(data);
 
-            // Pie generator that preserves the order of data
+            // Pie generator to process the data in received order
             var pie = d3.pie()
                 .value(d => d[1]) // Use the value for the pie slice size
-                .sort(null); // Disable automatic sorting
+                .sort(null); // Disable sorting entirely to preserve order
 
             var data_ready = pie(dataArray);
 
@@ -154,7 +154,6 @@
         fetchData();
         setInterval(fetchData, 1000);
     </script>
-
 
 
 </body>
