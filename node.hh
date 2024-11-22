@@ -227,7 +227,7 @@ class Node final {
     }
 
   public:
-    Node(node_addr self, node_addr seed = "", int vnode = 1, int rf = 3)
+    Node(node_addr self, node_addr seed = "", int vnode = 3, int rf = 3)
         : self(self), replication_factor(rf) {
 
         auto seedhash = static_cast<uint64_t>(std::hash<std::string>{}(seed));
