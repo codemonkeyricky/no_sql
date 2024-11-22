@@ -19,6 +19,7 @@
 <body>
     <div id="my_dataviz"></div>
 
+
     <script>
         // Dimensions and margins
         var width = 450,
@@ -36,17 +37,18 @@
             .append("g")
             .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
 
-        // Persistent color mapping
+        // Persistent color mapping for prefixes
         var colorMapping = {};
         var colorScale = d3.scaleOrdinal(d3.schemeDark2);
         var colorIndex = 0;
 
-        // Function to get or assign a color for a label
+        // Function to get or assign a color for a prefix
         function getColor(label) {
-            if (!colorMapping[label]) {
-                colorMapping[label] = colorScale(colorIndex++);
+            const prefix = label.split('-')[0]; // Extract prefix
+            if (!colorMapping[prefix]) {
+                colorMapping[prefix] = colorScale(colorIndex++);
             }
-            return colorMapping[label];
+            return colorMapping[prefix];
         }
 
         // Initialize arcs
@@ -123,7 +125,7 @@
             labels.enter()
                 .append('text')
                 .merge(labels)
-                .text(d => d.data[0]) // Use the key as the label
+                .text(d => d.data[0]) // Use the full label as the text
                 .transition().duration(1000)
                 .attr('transform', function (d) {
                     var pos = outerArc.centroid(d);
@@ -152,6 +154,7 @@
         fetchData();
         setInterval(fetchData, 1000);
     </script>
+
 
 </body>
 
