@@ -111,7 +111,7 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
 
             unordered_map<string, int> cnt;
 
-            string replacement = "var data = {";
+            string replacement = "{";
             for (auto& bar : bars) {
                 auto p = bar.first.find(":");
                 auto name = bar.first.substr(p + 1);
@@ -151,7 +151,7 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                 outFile.close();
             }
 
-            auto resp = "ring_ack:" + node.get_status();
+            auto resp = "ring_ack:" + replacement;
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
