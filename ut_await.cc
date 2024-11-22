@@ -98,8 +98,10 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                 const auto [token, timestamp, id_hash] = *it;
                 auto p = it == lookup.begin() ? prev(lookup.end()) : prev(it);
                 auto [ptoken, skip, skip1] = *p;
-                auto range = it != lookup.begin() ? (token - ptoken)
-                                                  : (token + 1e9 + 7 - ptoken);
+                auto range =
+                    it != lookup.begin()
+                        ? (token - ptoken)
+                        : (token + Partitioner::instance().getRange() - ptoken);
                 auto s = hash_lookup.at(id_hash);
                 bars.push_back(make_pair(s, range));
 
@@ -194,7 +196,7 @@ awaitable<void> heartbeat(vector<shared_ptr<Node>>& nodes) {
             auto [server, seed] = pending.front();
             pending.pop();
 
-            nodes.push_back(std::shared_ptr<Node>(new Node(server, seed)));
+            nodes.push_back(std::shared_ptr<Node>(new Node(server, seed, 1)));
             co_spawn(io, listener(*nodes.back()), detached);
         }
 
@@ -255,12 +257,11 @@ int main() {
         int port = 5555;
         string seed;
         vector<shared_ptr<Node>> nodes;
-        // nodes.reserve(
-        //     128); /* TODO: removing this cause crash during node add */
         for (auto i = 0; i < NODES; ++i) {
 
             string addr_port = addr + ":" + to_string(port++);
-            nodes.push_back(std::shared_ptr<Node>(new Node(addr_port, seed)));
+            nodes.push_back(
+                std::shared_ptr<Node>(new Node(addr_port, seed, 1)));
             if (seed == "") {
                 seed = addr_port;
             }

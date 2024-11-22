@@ -117,7 +117,7 @@ struct NodeMap {
 
 class Partitioner {
 
-    uint64_t range = 1e9 + 7;
+    uint64_t range = 32;
 
   public:
     Partitioner() { srand(0); }
