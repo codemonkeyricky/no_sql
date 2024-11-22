@@ -1,6 +1,6 @@
-
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,6 +15,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="my_dataviz"></div>
 
@@ -35,8 +36,18 @@
             .append("g")
             .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
 
-        // Create color scale
-        var color = d3.scaleOrdinal(d3.schemeDark2);
+        // Persistent color mapping
+        var colorMapping = {};
+        var colorScale = d3.scaleOrdinal(d3.schemeDark2);
+        var colorIndex = 0;
+
+        // Function to get or assign a color for a label
+        function getColor(label) {
+            if (!colorMapping[label]) {
+                colorMapping[label] = colorScale(colorIndex++);
+            }
+            return colorMapping[label];
+        }
 
         // Initialize arcs
         var arc = d3.arc()
@@ -65,7 +76,7 @@
                 .append('path')
                 .merge(slices)
                 .attr('d', arc)
-                .attr('fill', d => color(d.data.key))
+                .attr('fill', d => getColor(d.data.key)) // Use getColor to ensure consistent coloring
                 .attr('stroke', 'white')
                 .style('stroke-width', '2px')
                 .style('opacity', 0.7);
@@ -83,7 +94,7 @@
                 .attr("stroke", "black")
                 .style("fill", "none")
                 .attr("stroke-width", 1)
-                .attr('points', function(d) {
+                .attr('points', function (d) {
                     var posA = arc.centroid(d);
                     var posB = outerArc.centroid(d);
                     var posC = outerArc.centroid(d);
@@ -102,13 +113,13 @@
                 .append('text')
                 .merge(labels)
                 .text(d => d.data.key)
-                .attr('transform', function(d) {
+                .attr('transform', function (d) {
                     var pos = outerArc.centroid(d);
                     var midangle = d.startAngle + (d.endAngle - d.startAngle) / 2;
                     pos[0] = radius * 0.99 * (midangle < Math.PI ? 1 : -1);
                     return 'translate(' + pos + ')';
                 })
-                .style('text-anchor', function(d) {
+                .style('text-anchor', function (d) {
                     var midangle = d.startAngle + (d.endAngle - d.startAngle) / 2;
                     return (midangle < Math.PI ? 'start' : 'end');
                 });
@@ -129,6 +140,7 @@
         fetchData();
         setInterval(fetchData, 1000);
     </script>
-</body>
-</html>
 
+</body>
+
+</html>
