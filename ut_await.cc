@@ -165,7 +165,7 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
     co_return;
 }
 
-awaitable<void> listener(Node& node) {
+awaitable<void> node_listener(Node& node) {
     auto executor = co_await this_coro::executor;
 
     auto p = node.get_addr().find(":");
@@ -174,12 +174,20 @@ awaitable<void> listener(Node& node) {
 
     tcp::acceptor acceptor(executor, {tcp::v4(), stoi(port)});
     for (;;) {
+        auto cancellation = co_await boost::asio::this_coro::cancellation_state;
+        if (cancellation.cancelled() != boost::asio::cancellation_type::none) {
+            std::cout << "Cancellation requested for node_listener: "
+                      << node.get_addr() << std::endl;
+            break;
+        }
+
         auto socket =
             co_await acceptor.async_accept(boost::asio::use_awaitable);
         co_spawn(executor, rx_process(node, std::move(socket)), detached);
     }
 }
-static queue<array<string, 2>> pending;
+static queue<array<string, 2>> pending_add;
+static queue<string> pending_remove;
 
 awaitable<void> heartbeat(vector<shared_ptr<Node>>& nodes) {
     boost::asio::steady_timer timer(co_await this_coro::executor);
@@ -191,13 +199,15 @@ awaitable<void> heartbeat(vector<shared_ptr<Node>>& nodes) {
             co_await n->heartbeat();
         }
 
-        while (pending.size()) {
-
-            auto [server, seed] = pending.front();
-            pending.pop();
+        while (pending_add.size()) {
+            auto [server, seed] = pending_add.front();
+            pending_add.pop();
 
             nodes.push_back(std::shared_ptr<Node>(new Node(server, seed, 1)));
-            co_spawn(io, listener(*nodes.back()), detached);
+            co_spawn(io, node_listener(*nodes.back()), detached);
+        }
+
+        while (pending_remove.size()) {
         }
 
         /* heartbeat every second */
@@ -223,18 +233,21 @@ awaitable<void> cp_process(vector<shared_ptr<Node>>& nodes,
             /* TODO: parse address */
             auto seed = payload.substr(p + 1);
 
-            pending.push({"127.0.0.1:" + to_string(port++), "127.0.0.1:5555"});
+            pending_add.push(
+                {"127.0.0.1:" + to_string(port++), "127.0.0.1:5555"});
 
             auto resp = "ana:" + seed;
             co_await async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
                                  boost::asio::use_awaitable);
+        } else if (cmd == "rn") {
+            auto seed = payload.substr(p + 1);
         }
     }
     co_return;
 }
 
-awaitable<void> cp_listener(vector<shared_ptr<Node>>& nodes) {
+awaitable<void> system_listener(vector<shared_ptr<Node>>& nodes) {
     auto executor = co_await this_coro::executor;
 
     tcp::acceptor acceptor(executor, {tcp::v4(), 5001});
@@ -253,6 +266,8 @@ int main() {
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
 
+        vector<boost::asio::cancellation_signal> cancellation_signals(128);
+
         string addr = "127.0.0.1";
         int port = 5555;
         string seed;
@@ -265,12 +280,15 @@ int main() {
             if (seed == "") {
                 seed = addr_port;
             }
-            co_spawn(io_context, listener(*nodes.back()), detached);
+            /* node control plane */
+            co_spawn(io_context, node_listener(*nodes.back()), detached);
         }
 
+        /* distributed system heartbeat */
         co_spawn(io_context, heartbeat(nodes), detached);
 
-        co_spawn(io_context, cp_listener(nodes), detached);
+        /* distributed system control plane */
+        co_spawn(io_context, system_listener(nodes), detached);
 
         io_context.run();
     });
