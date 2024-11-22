@@ -60,22 +60,25 @@
 
         // Function to update the chart
         function update(data) {
-            // Pie generator
-            var pie = d3.pie()
-                .sort(null)
-                .value(d => d.value);
+            // Convert the data object to an array of entries to maintain order
+            var dataArray = Object.entries(data);
 
-            var data_ready = pie(d3.entries(data));
+            // Pie generator that preserves the order of data
+            var pie = d3.pie()
+                .value(d => d[1]) // Use the value for the pie slice size
+                .sort(null); // Disable automatic sorting
+
+            var data_ready = pie(dataArray);
 
             // ----- Update Arcs -----
             var slices = svg.selectAll('path')
-                .data(data_ready, d => d.data.key); // Use key for consistent binding
+                .data(data_ready, d => d.data[0]); // Use the key for consistent binding
 
             // Enter new arcs
             slices.enter()
                 .append('path')
                 .attr('d', arc)
-                .attr('fill', d => getColor(d.data.key))
+                .attr('fill', d => getColor(d.data[0]))
                 .attr('stroke', 'white')
                 .style('stroke-width', '2px')
                 .style('opacity', 0.7)
@@ -93,7 +96,7 @@
 
             // ----- Update Polylines -----
             var polylines = svg.selectAll('polyline')
-                .data(data_ready, d => d.data.key);
+                .data(data_ready, d => d.data[0]);
 
             polylines.enter()
                 .append('polyline')
@@ -115,12 +118,12 @@
 
             // ----- Update Labels -----
             var labels = svg.selectAll('text')
-                .data(data_ready, d => d.data.key);
+                .data(data_ready, d => d.data[0]);
 
             labels.enter()
                 .append('text')
                 .merge(labels)
-                .text(d => d.data.key)
+                .text(d => d.data[0]) // Use the key as the label
                 .transition().duration(1000)
                 .attr('transform', function (d) {
                     var pos = outerArc.centroid(d);
@@ -149,7 +152,6 @@
         fetchData();
         setInterval(fetchData, 1000);
     </script>
-
 
 </body>
 
