@@ -1,6 +1,8 @@
 
 
 #include "node.hh"
+#include <boost/asio/cancellation_signal.hpp>
+#include <boost/asio/experimental/parallel_group.hpp>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
@@ -8,7 +10,11 @@
 #include <queue>
 #include <unordered_map>
 
+#include <boost/asio.hpp>
+#include <boost/asio/experimental/awaitable_operators.hpp>
+
 #include <boost/algorithm/string.hpp>
+#include <boost/asio/bind_cancellation_slot.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
@@ -27,6 +33,9 @@ using boost::asio::ip::tcp;
 namespace this_coro = boost::asio::this_coro;
 
 using namespace std;
+
+unordered_map<string, shared_ptr<boost::asio::cancellation_signal>>
+    cancel_lookup;
 
 awaitable<void> rx_process(Node& node, tcp::socket socket) {
 
@@ -167,6 +176,7 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
 
 awaitable<void> node_listener(Node& node) {
     auto executor = co_await this_coro::executor;
+    // auto cancellation = co_await asio::this_coro::cancellation_state;
 
     auto p = node.get_addr().find(":");
     auto addr = node.get_addr().substr(0, p);
@@ -174,12 +184,6 @@ awaitable<void> node_listener(Node& node) {
 
     tcp::acceptor acceptor(executor, {tcp::v4(), stoi(port)});
     for (;;) {
-        auto cancellation = co_await boost::asio::this_coro::cancellation_state;
-        if (cancellation.cancelled() != boost::asio::cancellation_type::none) {
-            std::cout << "Cancellation requested for node_listener: "
-                      << node.get_addr() << std::endl;
-            break;
-        }
 
         auto socket =
             co_await acceptor.async_accept(boost::asio::use_awaitable);
@@ -242,6 +246,11 @@ awaitable<void> cp_process(vector<shared_ptr<Node>>& nodes,
                                  boost::asio::use_awaitable);
         } else if (cmd == "rn") {
             auto seed = payload.substr(p + 1);
+            auto target = cancel_lookup["127.0.0.1:5555"];
+            target->emit(boost::asio::cancellation_type::all);
+
+            /* TODO: delete heartbeat */
+            /* TODO: wait for all current connnections to drain */
         }
     }
     co_return;
@@ -266,8 +275,6 @@ int main() {
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
 
-        vector<boost::asio::cancellation_signal> cancellation_signals(128);
-
         string addr = "127.0.0.1";
         int port = 5555;
         string seed;
@@ -281,7 +288,12 @@ int main() {
                 seed = addr_port;
             }
             /* node control plane */
-            co_spawn(io_context, node_listener(*nodes.back()), detached);
+            auto cancel = shared_ptr<boost::asio::cancellation_signal>(
+                new boost::asio::cancellation_signal());
+            cancel_lookup[addr_port] = cancel;
+            co_spawn(
+                io_context, node_listener(*nodes.back()),
+                boost::asio::bind_cancellation_slot(cancel->slot(), detached));
         }
 
         /* distributed system heartbeat */
