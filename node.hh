@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/detached.hpp>
@@ -144,6 +145,7 @@ class Node final {
         int gossip_rx;
         int gossip_tx;
     };
+    boost::asio::cancellation_signal cancel_signal;
 
   private:
     Partitioner& p = Partitioner::instance();
