@@ -1,0 +1,10 @@
+# Webserver 
+python -m venv flask
+source flask/bin/activate
+pip install flask
+cd web
+python app.py
+
+# Tell control server t o add node
+echo -n "an:" | nc -N 127.0.0.1 5001
+

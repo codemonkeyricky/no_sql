@@ -173,6 +173,34 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
     co_return;
 }
 
+// boost::asio::awaitable<void> dummy() {
+//     auto executor = co_await boost::asio::this_coro::executor;
+//     boost::asio::steady_timer timer(executor);
+
+//     while (true) {
+//         timer.expires_after(std::chrono::seconds(3));
+//         co_await timer.async_wait(boost::asio::use_awaitable);
+//     }
+
+//     co_return;
+// }
+
+// boost::asio::awaitable<void> cancellable(Node& n) {
+//     auto io = co_await boost::asio::this_coro::executor;
+
+//     co_await boost::asio::co_spawn(
+//         io, dummy(),
+//         boost::asio::bind_cancellation_slot(n.cancel_signal.slot(),
+//         detached));
+
+//     co_return;
+// }
+
+awaitable<void> Cancelled(boost::asio::steady_timer& cancelTimer) {
+    boost::system::error_code ec;
+    co_await cancelTimer.async_wait(redirect_error(use_awaitable, ec));
+}
+
 awaitable<void> node_listener(Node& node) {
     auto executor = co_await this_coro::executor;
     // auto cancellation = co_await asio::this_coro::cancellation_state;
@@ -181,12 +209,24 @@ awaitable<void> node_listener(Node& node) {
     auto addr = node.get_addr().substr(0, p);
     auto port = node.get_addr().substr(p + 1);
 
+    boost::asio::steady_timer cancelTimer{
+        executor, std::chrono::steady_clock::duration::max()};
+
     tcp::acceptor acceptor(executor, {tcp::v4(), stoi(port)});
     for (;;) {
 
-        auto socket =
-            co_await acceptor.async_accept(boost::asio::use_awaitable);
-        co_spawn(executor, rx_process(node, std::move(socket)), detached);
+        using namespace boost::asio::experimental::awaitable_operators;
+
+        auto result{
+            co_await (acceptor.async_accept(boost::asio::use_awaitable) ||
+                      Cancelled(cancelTimer))};
+
+        // Check which awaitable completed
+
+        if (result.index() == 0) {
+            auto socket = std::move(std::get<0>(result));
+            co_spawn(executor, rx_process(node, std::move(socket)), detached);
+        }
     }
 }
 static queue<array<string, 2>> pending_add;
