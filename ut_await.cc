@@ -21,13 +21,43 @@
 using namespace std;
 
 struct Cluster {
+
+    queue<array<string, 2>> pending_add;
+    queue<string> pending_remove;
     map<string, unique_ptr<Node>> nodes;
+
+    boost::cobalt::task<void> heartbeat() {
+        auto io = co_await boost::cobalt::this_coro::executor;
+        boost::asio::steady_timer timer(io);
+
+        for (;;) {
+
+            for (auto& n : nodes) {
+                co_await n.second->heartbeat();
+            }
+
+            while (pending_add.size()) {
+                auto [server, seed] = pending_add.front();
+                pending_add.pop();
+
+                auto& n = nodes[server] =
+                    std::unique_ptr<Node>(new Node(server, seed, 1));
+
+                boost::cobalt::spawn(io, n->node_listener(),
+                                     boost::asio::detached);
+            }
+
+            while (pending_remove.size()) {
+            }
+
+            /* heartbeat every second */
+            timer.expires_at(std::chrono::steady_clock::now() +
+                             std::chrono::seconds(1));
+        }
+    }
 
     // unique_ptr<Node>& operator[](string& name) { return nodes[name]; }
 };
-
-static queue<array<string, 2>> pending_add;
-static queue<string> pending_remove;
 
 /* shared_ptr to cluster */
 static shared_ptr<Cluster> cluster;
@@ -36,35 +66,6 @@ static shared_ptr<Cluster> cluster;
 //     boost::system::error_code ec;
 //     co_await cancelTimer.async_wait(redirect_error(use_awaitable, ec));
 // }
-
-boost::cobalt::task<void> heartbeat(shared_ptr<Cluster> cluster) {
-    auto io = co_await boost::cobalt::this_coro::executor;
-    boost::asio::steady_timer timer(io);
-
-    for (;;) {
-
-        for (auto& n : cluster->nodes) {
-            co_await n.second->heartbeat();
-        }
-
-        while (pending_add.size()) {
-            auto [server, seed] = pending_add.front();
-            pending_add.pop();
-
-            auto& n = cluster->nodes[server] =
-                std::unique_ptr<Node>(new Node(server, seed, 1));
-
-            boost::cobalt::spawn(io, n->node_listener(), boost::asio::detached);
-        }
-
-        while (pending_remove.size()) {
-        }
-
-        /* heartbeat every second */
-        timer.expires_at(std::chrono::steady_clock::now() +
-                         std::chrono::seconds(1));
-    }
-}
 
 static int port = 6000;
 boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
@@ -83,7 +84,7 @@ boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
             /* TODO: parse address */
             auto seed = payload.substr(p + 1);
 
-            pending_add.push(
+            cluster->pending_add.push(
                 {"127.0.0.1:" + to_string(port++), "127.0.0.1:5555"});
 
             auto resp = "ana:" + seed;
@@ -143,7 +144,7 @@ int main() {
         }
 
         // /* distributed system heartbeat */
-        boost::cobalt::spawn(io_context, heartbeat(cluster),
+        boost::cobalt::spawn(io_context, cluster->heartbeat(),
                              boost::asio::detached);
 
         // /* distributed system control plane */
