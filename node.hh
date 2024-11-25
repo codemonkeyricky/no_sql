@@ -155,7 +155,7 @@ class Node final {
     Partitioner& p = Partitioner::instance();
     Time& t = Time::instance();
 
-    boost::asio::steady_timer cancel;
+    std::shared_ptr<boost::asio::steady_timer> cancel;
 
     NodeMap local_map;
     Lookup lookup;
@@ -753,10 +753,9 @@ class Node final {
         co_return;
     }
 
-    boost::cobalt::task<bool>
-    Cancelled(boost::asio::steady_timer& cancelTimer) {
+    boost::cobalt::task<bool> Cancelled() {
         boost::system::error_code ec;
-        co_await cancelTimer.async_wait(
+        co_await cancel->async_wait(
             boost::asio::redirect_error(boost::cobalt::use_task, ec));
 
         co_return true;
@@ -770,8 +769,9 @@ class Node final {
         auto addr = get_addr().substr(0, p);
         auto port = get_addr().substr(p + 1);
 
-        cancel = boost::asio::steady_timer{
-            executor, std::chrono::steady_clock::duration::max()};
+        cancel = std::shared_ptr<boost::asio::steady_timer>(
+            new boost::asio::steady_timer{
+                executor, std::chrono::steady_clock::duration::max()});
 
         boost::asio::ip::tcp::acceptor acceptor(
             executor, {boost::asio::ip::tcp::v4(), stoi(port)});
@@ -781,7 +781,7 @@ class Node final {
             boost::variant2::variant<boost::asio::ip::tcp::socket, bool> nx =
                 co_await boost::cobalt::race(
                     acceptor.async_accept(boost::cobalt::use_task),
-                    Cancelled(cancel));
+                    Cancelled());
             switch (nx.index()) {
             case 0: {
 
@@ -809,7 +809,6 @@ class Node final {
 
     constexpr std::string
     status_to_string(const NodeMap::Node::Status& status) const {
-
         switch (status) {
         case NodeMap::Node::Status::Joining:
             return "Joining";
