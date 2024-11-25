@@ -16,6 +16,8 @@
 
 // #include <boost/asio/cancellation_signal.hpp>
 // #include <boost/asio/co_spawn.hpp>
+#include <boost/variant2/variant.hpp>
+
 #include <boost/asio.hpp>
 #include <boost/asio/connect.hpp>
 // #include <boost/asio/detached.hpp>
@@ -749,40 +751,48 @@ class Node final {
         co_return;
     }
 
-    boost::cobalt::task<void> node_listener() {
-        auto executor = co_await boost::cobalt::this_coro::executor;
+    boost::cobalt::task<bool>
+    Cancelled(boost::asio::steady_timer& cancelTimer) {
+        boost::system::error_code ec;
+        co_await cancelTimer.async_wait(
+            boost::asio::redirect_error(boost::cobalt::use_task, ec));
 
-        // auto cancellation = co_await asio::this_coro::cancellation_state;
+        co_return true;
+    }
+
+    boost::cobalt::task<void> node_listener() {
+
+        auto executor = co_await boost::cobalt::this_coro::executor;
 
         auto p = get_addr().find(":");
         auto addr = get_addr().substr(0, p);
         auto port = get_addr().substr(p + 1);
 
-        boost::asio::steady_timer cancelTimer{
+        boost::asio::steady_timer cancel{
             executor, std::chrono::steady_clock::duration::max()};
 
         boost::asio::ip::tcp::acceptor acceptor(
             executor, {boost::asio::ip::tcp::v4(), stoi(port)});
         for (;;) {
 
-            auto socket =
-                co_await acceptor.async_accept(boost::cobalt::use_task);
-            boost::cobalt::spawn(executor, rx_process(std::move(socket)),
-                                 boost::asio::detached);
+            // auto socket =
+            boost::variant2::variant<boost::asio::ip::tcp::socket, bool> nx =
+                co_await boost::cobalt::race(
+                    acceptor.async_accept(boost::cobalt::use_task),
+                    Cancelled(cancel));
+            switch (nx.index()) {
+            case 0: {
 
-            // using namespace boost::asio::experimental::awaitable_operators;
-
-            // auto result{
-            //     co_await (acceptor.async_accept(boost::cobalt::use_task) ||
-            //               Cancelled(cancelTimer))};
-
-            // // Check which awaitable completed
-
-            // if (result.index() == 0) {
-            //     auto socket = std::move(std::get<0>(result));
-            //     co_spawn(executor, rx_process(node, std::move(socket)),
-            //     detached);
-            // }
+                auto& socket = boost::variant2::get<0>(nx);
+                boost::cobalt::spawn(executor, rx_process(std::move(socket)),
+                                     boost::asio::detached);
+                break;
+            }
+            case 1:
+                std::cout << self << ":" << "node_listener() - canceld!"
+                          << std::endl;
+                break;
+            }
         }
     }
 
