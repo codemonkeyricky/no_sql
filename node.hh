@@ -149,13 +149,11 @@ class Node final {
         int gossip_rx;
         int gossip_tx;
     };
-    boost::asio::cancellation_signal cancel_signal;
+    std::shared_ptr<boost::asio::steady_timer> cancel;
 
   private:
     Partitioner& p = Partitioner::instance();
     Time& t = Time::instance();
-
-    std::shared_ptr<boost::asio::steady_timer> cancel;
 
     NodeMap local_map;
     Lookup lookup;

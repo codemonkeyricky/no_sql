@@ -107,6 +107,8 @@ boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
 
             auto to_remove = payload.substr(p + 1);
 
+            cluster->nodes[to_remove]->cancel->cancel();
+
             // auto& target = (*nodes.begin()).second->cancel_signal;
             // target.emit(boost::asio::cancellation_type::all);
 
