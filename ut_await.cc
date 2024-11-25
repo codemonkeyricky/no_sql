@@ -25,6 +25,7 @@ struct Cluster {
     queue<array<string, 2>> pending_add;
     queue<string> pending_remove;
     map<string, unique_ptr<Node>> nodes;
+    bool ready = false;
 
     boost::cobalt::task<void> heartbeat() {
         auto io = co_await boost::cobalt::this_coro::executor;
@@ -50,6 +51,14 @@ struct Cluster {
             while (pending_remove.size()) {
             }
 
+            ready = true;
+            for (auto& n : nodes) {
+                if (n.second->get_status() != "Live") {
+                    ready = false;
+                    break;
+                }
+            }
+
             /* heartbeat every second */
             timer.expires_at(std::chrono::steady_clock::now() +
                              std::chrono::seconds(1));
@@ -62,7 +71,8 @@ struct Cluster {
 /* shared_ptr to cluster */
 static shared_ptr<Cluster> cluster;
 
-// boost::cobalt::task<void> Cancelled(boost::asio::steady_timer& cancelTimer) {
+// boost::cobalt::task<void> Cancelled(boost::asio::steady_timer&
+// cancelTimer) {
 //     boost::system::error_code ec;
 //     co_await cancelTimer.async_wait(redirect_error(use_awaitable, ec));
 // }
@@ -98,6 +108,16 @@ boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
 
             /* TODO: delete heartbeat */
             /* TODO: wait for all current connnections to drain */
+        } else if (cmd == "ready") {
+            std::string resp;
+            if (cluster->ready) {
+                resp = "ready_ack:ready";
+            } else {
+                resp = "ready_ack:not_ready";
+            }
+            co_await boost::asio::async_write(
+                socket, boost::asio::buffer(resp.c_str(), resp.size()),
+                boost::cobalt::use_task);
         }
     }
     co_return;
@@ -155,6 +175,59 @@ int main() {
     });
 
     /* test code here */
+
+    usleep(500 * 1000);
+
+    boost::asio::io_context io(1);
+
+    boost::cobalt::spawn(
+        io,
+        []() -> boost::cobalt::task<void> {
+            auto io = co_await boost::cobalt::this_coro::executor;
+            boost::asio::ip::tcp::resolver resolver(io);
+            boost::asio::ip::tcp::socket socket(io);
+            auto ep = resolver.resolve("127.0.0.1", "5001");
+
+            boost::system::error_code err_code;
+            boost::asio::async_connect(
+                socket, ep,
+                [&socket, &err_code](const boost::system::error_code& error,
+                                     const boost::asio::ip::tcp::endpoint&) {
+                    err_code = error;
+                    // std::cout << "error = " << error << std::endl;
+                });
+
+            try {
+
+                std::string tx_payload = "ready:";
+                co_await boost::asio::async_write(
+                    socket, boost::asio::buffer(tx_payload, tx_payload.size()),
+                    boost::cobalt::use_task);
+
+                /* read results */
+
+                // std::cout << self << ":" << "gossip_tx() - #4" << std::endl;
+                char rx_payload[1024] = {};
+                std::size_t n = co_await socket.async_read_some(
+                    boost::asio::buffer(rx_payload), boost::cobalt::use_task);
+
+                // auto serialized_data = std::string(rx_payload + 3, n - 3);
+                // auto remote_map = deserialize<NodeMap>(serialized_data);
+                // local_map = remote_map = local_map + remote_map;
+                // update_lookup();
+
+                /* TODO: account for peer death */
+                volatile int dummy = 0;
+
+            } catch (std::exception& e) {
+                // std::cout << self << ":" << "heartbeat() - failed to
+                // connect!"
+                //           << std::endl;
+            }
+        }(),
+        boost::asio::detached);
+
+    io.run();
 
     /* wait for cluster ready */
 
