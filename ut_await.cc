@@ -103,8 +103,10 @@ boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
             co_await boost::asio::async_write(
                 socket, boost::asio::buffer(resp.c_str(), resp.size()),
                 boost::cobalt::use_task);
-        } else if (cmd == "rn") {
-            auto seed = payload.substr(p + 1);
+        } else if (cmd == "remove_node") {
+
+            auto to_remove = payload.substr(p + 1);
+
             // auto& target = (*nodes.begin()).second->cancel_signal;
             // target.emit(boost::asio::cancellation_type::all);
 
@@ -226,6 +228,26 @@ int main() {
             co_await boost::asio::async_write(
                 socket, boost::asio::buffer(tx_payload, tx_payload.size()),
                 boost::cobalt::use_task);
+
+            char rx_payload[1024] = {};
+            std::size_t n = co_await socket.async_read_some(
+                boost::asio::buffer(rx_payload), boost::cobalt::use_task);
+
+            /* TODO: wait for ready */
+            usleep(500 * 1000);
+
+            tx_payload = "remove_node:127.0.0.1:6000";
+            co_await boost::asio::async_write(
+                socket, boost::asio::buffer(tx_payload, tx_payload.size()),
+                boost::cobalt::use_task);
+
+            rx_payload[1024] = {};
+            n = co_await socket.async_read_some(boost::asio::buffer(rx_payload),
+                                                boost::cobalt::use_task);
+
+            while (true) {
+                usleep(500 * 1000);
+            }
         }(),
         boost::asio::detached);
 
