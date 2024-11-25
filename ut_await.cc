@@ -12,6 +12,7 @@
 
 #include <boost/asio.hpp>
 #include <boost/asio/experimental/awaitable_operators.hpp>
+#include <boost/cobalt.hpp>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/bind_cancellation_slot.hpp>

@@ -8,3 +8,9 @@ python app.py
 # Tell control server t o add node
 echo -n "an:" | nc -N 127.0.0.1 5001
 
+LD_LIBRARY_PATH=/usr/local/lib bazel-bin/remote
+
+# Building boost with cobalt
+./bootstrap
+./b2 cxxflags="-std=c++20" linkflags="-std=c++20" --with-cobalt
+sudo ./b2 cxxflags="-std=c++20" linkflags="-std=c++20" --with-cobalt install
