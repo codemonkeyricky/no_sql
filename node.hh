@@ -14,14 +14,15 @@
 #include <unordered_map>
 #include <vector>
 
-#include <boost/asio/cancellation_signal.hpp>
-#include <boost/asio/co_spawn.hpp>
+// #include <boost/asio/cancellation_signal.hpp>
+// #include <boost/asio/co_spawn.hpp>
 #include <boost/asio/connect.hpp>
-#include <boost/asio/detached.hpp>
+// #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/signal_set.hpp>
+// #include <boost/asio/signal_set.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/cobalt.hpp>
 
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
@@ -304,7 +305,7 @@ class Node final {
         ++stats.gossip_rx;
     }
 
-    boost::asio::awaitable<void> gossip_tx() {
+    boost::cobalt::task<void> gossip_tx() {
 
         // std::cout << self << ":" << "gossip_tx() - #1" << std::endl;
 
@@ -335,7 +336,7 @@ class Node final {
             auto ep = resolver.resolve(addr, port);
 
             boost::system::error_code err_code;
-            async_connect(
+            boost::asio::async_connect(
                 socket, ep,
                 [&socket, &err_code](const boost::system::error_code& error,
                                      const boost::asio::ip::tcp::endpoint&) {
@@ -347,17 +348,16 @@ class Node final {
             try {
 
                 auto payload = "g:" + serialize(local_map);
-                co_await async_write(
+                co_await boost::asio::async_write(
                     socket, boost::asio::buffer(payload, payload.size()),
-                    boost::asio::use_awaitable);
+                    boost::cobalt::use_task);
 
                 /* read results */
 
                 // std::cout << self << ":" << "gossip_tx() - #4" << std::endl;
                 char rx_payload[1024] = {};
                 std::size_t n = co_await socket.async_read_some(
-                    boost::asio::buffer(rx_payload),
-                    boost::asio::use_awaitable);
+                    boost::asio::buffer(rx_payload), boost::cobalt::use_task);
 
                 auto serialized_data = std::string(rx_payload + 3, n - 3);
                 auto remote_map = deserialize<NodeMap>(serialized_data);
@@ -411,8 +411,8 @@ class Node final {
         }
     }
 
-    boost::asio::awaitable<std::string> read_remote(std::string& peer,
-                                                    std::string& key) {
+    boost::cobalt::task<std::string> read_remote(std::string& peer,
+                                                 std::string& key) {
 
         std::cout << self << ":" << "read_remote() invoked!" << std::endl;
 
@@ -428,26 +428,26 @@ class Node final {
         auto ep = resolver.resolve(addr, port);
 
         /* Connect */
-        async_connect(socket, ep,
+        boost::asio::async_connect(socket, ep,
                       [&socket](const boost::system::error_code& error,
                                 const boost::asio::ip::tcp::endpoint&) {});
 
         std::string req = "r:" + key;
-        co_await async_write(socket,
+        co_await boost::asio::async_write(socket,
                              boost::asio::buffer(req.c_str(), req.size()),
-                             boost::asio::use_awaitable);
+                             boost::cobalt::use_task);
 
         /* read results */
         char payload[1024] = {};
         std::size_t n = co_await socket.async_read_some(
-            boost::asio::buffer(payload), boost::asio::use_awaitable);
+            boost::asio::buffer(payload), boost::cobalt::use_task);
 
         std::string rv(payload + 3, n - 3);
 
         co_return rv;
     }
 
-    boost::asio::awaitable<std::string> read(std::string& key) {
+    boost::cobalt::task<std::string> read(std::string& key) {
 
         auto key_hash =
             static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
@@ -485,9 +485,9 @@ class Node final {
         co_return "";
     }
 
-    boost::asio::awaitable<void> write_remote(const std::string& peer_addr,
-                                              const std::string& key,
-                                              const std::string& value) {
+    boost::cobalt::task<void> write_remote(const std::string& peer_addr,
+                                           const std::string& key,
+                                           const std::string& value) {
 
         std::cout << self << ":" << "write_remote() invoked!" << std::endl;
 
@@ -503,19 +503,19 @@ class Node final {
         boost::asio::ip::tcp::socket socket(io);
         auto ep = resolver.resolve(addr, port);
 
-        async_connect(socket, ep,
+        boost::asio::async_connect(socket, ep,
                       [&socket](const boost::system::error_code& error,
                                 const boost::asio::ip::tcp::endpoint&) {});
 
         const auto payload = "wf:" + key + "=" + value;
-        co_await async_write(socket,
+        co_await boost::asio::async_write(socket,
                              boost::asio::buffer(payload, payload.size()),
-                             boost::asio::use_awaitable);
+                             boost::cobalt::use_task);
     }
 
-    boost::asio::awaitable<void> write(const std::string& key,
-                                       const std::string& value,
-                                       bool coordinator = true) {
+    boost::cobalt::task<void> write(const std::string& key,
+                                    const std::string& value,
+                                    bool coordinator = true) {
 
         auto key_hash =
             static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
@@ -563,13 +563,13 @@ class Node final {
         /* not local - forward request */
     }
 
-    boost::asio::awaitable<void> heartbeat() {
+    boost::cobalt::task<void> heartbeat() {
 
         /* gossip during heartbeat */
         co_await gossip_tx();
     }
 
-    boost::asio::awaitable<std::map<hash, std::pair<key, value>>>
+    boost::cobalt::task<std::map<hash, std::pair<key, value>>>
     stream_remote(const std::string& peer, const hash i, const hash j) {
 
         std::cout << self << ":" << "stream_remote() invoked!" << std::endl;
@@ -586,19 +586,19 @@ class Node final {
         auto ep = resolver.resolve(addr, port);
 
         /* Connect */
-        async_connect(socket, ep,
+        boost::asio::async_connect(socket, ep,
                       [&socket](const boost::system::error_code& error,
                                 const boost::asio::ip::tcp::endpoint&) {});
 
         std::string req = "s:" + std::to_string(i) + "-" + std::to_string(j);
-        co_await async_write(socket,
+        co_await boost::asio::async_write(socket,
                              boost::asio::buffer(req.c_str(), req.size()),
-                             boost::asio::use_awaitable);
+                             boost::cobalt::use_task);
 
         /* read results */
         char payload[1024] = {};
         auto n = co_await socket.async_read_some(boost::asio::buffer(payload),
-                                                 boost::asio::use_awaitable);
+                                                 boost::cobalt::use_task);
 
         co_return deserialize<std::map<hash, std::pair<key, value>>>(
             std::string(payload + 3, n - 3));

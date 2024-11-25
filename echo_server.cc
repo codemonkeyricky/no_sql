@@ -16,10 +16,10 @@
 #include <boost/asio/write.hpp>
 #include <cstdio>
 
-using boost::asio::awaitable;
+using boost::cobalt::task;
 using boost::asio::co_spawn;
 using boost::asio::detached;
-using boost::asio::use_awaitable;
+using boost::cobalt::use_task;
 using boost::asio::ip::tcp;
 namespace this_coro = boost::asio::this_coro;
 
@@ -34,7 +34,7 @@ awaitable<void> echo(tcp::socket socket) {
         for (;;) {
             std::size_t n = co_await socket.async_read_some(
                 boost::asio::buffer(data), use_awaitable);
-            co_await async_write(socket, boost::asio::buffer(data, n),
+            co_await boost::asio::async_write(socket, boost::asio::buffer(data, n),
                                  use_awaitable);
         }
     } catch (std::exception& e) {

@@ -9,10 +9,10 @@
 #include <boost/asio/signal_set.hpp>
 #include <boost/asio/write.hpp>
 
-using boost::asio::awaitable;
+using boost::cobalt::task;
 using boost::asio::co_spawn;
 using boost::asio::detached;
-using boost::asio::use_awaitable;
+using boost::cobalt::use_task;
 using boost::asio::ip::tcp;
 namespace this_coro = boost::asio::this_coro;
 
@@ -23,7 +23,7 @@ awaitable<void> rx_process(tcp::socket socket) {
     char payload[1024];
     for (;;) {
         std::size_t n = co_await socket.async_read_some(
-            boost::asio::buffer(payload), boost::asio::use_awaitable);
+            boost::asio::buffer(payload), boost::cobalt::use_task);
 
         string cmd(payload, 1);
 
@@ -38,8 +38,8 @@ awaitable<void> rx_process(tcp::socket socket) {
             /* gossip */
         }
 
-        co_await async_write(socket, boost::asio::buffer(payload, n),
-                             boost::asio::use_awaitable);
+        co_await boost::asio::async_write(socket, boost::asio::buffer(payload, n),
+                             boost::cobalt::use_task);
     }
 }
 
@@ -49,7 +49,7 @@ awaitable<void> listener() {
     tcp::acceptor acceptor(executor, {tcp::v4(), 55555});
     for (;;) {
         auto socket =
-            co_await acceptor.async_accept(boost::asio::use_awaitable);
+            co_await acceptor.async_accept(boost::cobalt::use_task);
         co_spawn(executor, rx_process(std::move(socket)), detached);
     }
 }

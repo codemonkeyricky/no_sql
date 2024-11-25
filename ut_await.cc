@@ -10,39 +10,25 @@
 #include <queue>
 #include <unordered_map>
 
+#include <boost/algorithm/algorithm.hpp>
 #include <boost/asio.hpp>
-#include <boost/asio/experimental/awaitable_operators.hpp>
 #include <boost/cobalt.hpp>
 
-#include <boost/algorithm/string.hpp>
-#include <boost/asio/bind_cancellation_slot.hpp>
-#include <boost/asio/co_spawn.hpp>
-#include <boost/asio/detached.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/signal_set.hpp>
-#include <boost/asio/write.hpp>
-#include <boost/filesystem.hpp>
 #include <string>
 #include <utility>
-
-using boost::asio::awaitable;
-using boost::asio::co_spawn;
-using boost::asio::detached;
-using boost::asio::use_awaitable;
-using boost::asio::ip::tcp;
-namespace this_coro = boost::asio::this_coro;
 
 using namespace std;
 
 map<string, shared_ptr<Node>> nodes;
 
-awaitable<void> rx_process(Node& node, tcp::socket socket) {
+boost::cobalt::task<void> rx_process(Node& node,
+                                     boost::asio::ip::tcp::socket socket) {
 
+#if 0
     for (;;) {
         char data[1024] = {};
         std::size_t n = co_await socket.async_read_some(
-            boost::asio::buffer(data), boost::asio::use_awaitable);
+            boost::asio::buffer(data), boost::cobalt::use_task);
 
         string payload = string(data, n);
         auto p = payload.find(":");
@@ -53,9 +39,9 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
             auto key = string(data + 2, n - 2);
             auto value = co_await node.read(key);
             auto resp = "ra:" + value;
-            co_await async_write(socket,
+            co_await boost::asio::async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
-                                 boost::asio::use_awaitable);
+                                 boost::cobalt::use_task);
 
         } else if (cmd == "w" || cmd == "wf") {
 
@@ -74,17 +60,17 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
             else
                 resp = string("wa:");
 
-            co_await async_write(socket,
+            co_await boost::asio::async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
-                                 boost::asio::use_awaitable);
+                                 boost::cobalt::use_task);
         } else if (cmd == "g") {
             /* gossip */
             auto gossip = payload.substr(p + 1);
             node.gossip_rx(gossip);
             auto resp = "ga:" + gossip;
-            co_await async_write(socket,
+            co_await boost::asio::async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
-                                 boost::asio::use_awaitable);
+                                 boost::cobalt::use_task);
         } else if (cmd == "s") {
             auto stream = payload.substr(p + 1);
             auto p = stream.find("-");
@@ -92,14 +78,14 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
                  j = stoll(stream.substr(p + 1));
 
             auto resp = "sa:" + node.serialize(node.stream(i, j));
-            co_await async_write(socket,
+            co_await boost::asio::async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
-                                 boost::asio::use_awaitable);
+                                 boost::cobalt::use_task);
         } else if (cmd == "st") {
             auto resp = "sta:" + node.get_status();
-            co_await async_write(socket,
+            co_await boost::asio::async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
-                                 boost::asio::use_awaitable);
+                                 boost::cobalt::use_task);
         } else if (cmd == "ring") {
             const auto& [lookup, hash_lookup] = node.get_ring_view();
             vector<pair<const string, const uint64_t>> bars;
@@ -166,44 +152,23 @@ awaitable<void> rx_process(Node& node, tcp::socket socket) {
             }
 
             auto resp = "ring_ack:" + replacement;
-            co_await async_write(socket,
+            co_await boost::asio::async_write(socket,
                                  boost::asio::buffer(resp.c_str(), resp.size()),
-                                 boost::asio::use_awaitable);
+                                 boost::cobalt::use_task);
         }
     }
+#endif
     co_return;
 }
 
-// boost::asio::awaitable<void> dummy() {
-//     auto executor = co_await boost::asio::this_coro::executor;
-//     boost::asio::steady_timer timer(executor);
-
-//     while (true) {
-//         timer.expires_after(std::chrono::seconds(3));
-//         co_await timer.async_wait(boost::asio::use_awaitable);
-//     }
-
-//     co_return;
+// boost::cobalt::task<void> Cancelled(boost::asio::steady_timer& cancelTimer) {
+//     boost::system::error_code ec;
+//     co_await cancelTimer.async_wait(redirect_error(use_awaitable, ec));
 // }
 
-// boost::asio::awaitable<void> cancellable(Node& n) {
-//     auto io = co_await boost::asio::this_coro::executor;
+boost::cobalt::task<void> node_listener(Node& node) {
+    auto executor = co_await boost::cobalt::this_coro::executor;
 
-//     co_await boost::asio::co_spawn(
-//         io, dummy(),
-//         boost::asio::bind_cancellation_slot(n.cancel_signal.slot(),
-//         detached));
-
-//     co_return;
-// }
-
-awaitable<void> Cancelled(boost::asio::steady_timer& cancelTimer) {
-    boost::system::error_code ec;
-    co_await cancelTimer.async_wait(redirect_error(use_awaitable, ec));
-}
-
-awaitable<void> node_listener(Node& node) {
-    auto executor = co_await this_coro::executor;
     // auto cancellation = co_await asio::this_coro::cancellation_state;
 
     auto p = node.get_addr().find(":");
@@ -213,102 +178,109 @@ awaitable<void> node_listener(Node& node) {
     boost::asio::steady_timer cancelTimer{
         executor, std::chrono::steady_clock::duration::max()};
 
-    tcp::acceptor acceptor(executor, {tcp::v4(), stoi(port)});
+    boost::asio::ip::tcp::acceptor acceptor(
+        executor, {boost::asio::ip::tcp::v4(), stoi(port)});
     for (;;) {
 
-        using namespace boost::asio::experimental::awaitable_operators;
+        auto socket = co_await acceptor.async_accept(boost::cobalt::use_task);
+        boost::cobalt::spawn(executor, rx_process(node, std::move(socket)),
+                             boost::asio::detached);
 
-        auto result{
-            co_await (acceptor.async_accept(boost::asio::use_awaitable) ||
-                      Cancelled(cancelTimer))};
+        // using namespace boost::asio::experimental::awaitable_operators;
 
-        // Check which awaitable completed
+        // auto result{
+        //     co_await (acceptor.async_accept(boost::cobalt::use_task) ||
+        //               Cancelled(cancelTimer))};
 
-        if (result.index() == 0) {
-            auto socket = std::move(std::get<0>(result));
-            co_spawn(executor, rx_process(node, std::move(socket)), detached);
-        }
+        // // Check which awaitable completed
+
+        // if (result.index() == 0) {
+        //     auto socket = std::move(std::get<0>(result));
+        //     co_spawn(executor, rx_process(node, std::move(socket)),
+        //     detached);
+        // }
     }
 }
 static queue<array<string, 2>> pending_add;
 static queue<string> pending_remove;
 
-awaitable<void> heartbeat(map<string, shared_ptr<Node>>& nodes) {
-    boost::asio::steady_timer timer(co_await this_coro::executor);
-    auto io = co_await this_coro::executor;
+// boost::cobalt::task<void> heartbeat(map<string, shared_ptr<Node>>& nodes) {
+//     boost::asio::steady_timer timer(co_await this_coro::executor);
+//     auto io = co_await this_coro::executor;
 
-    for (;;) {
+//     for (;;) {
 
-        for (auto& n : nodes) {
-            co_await n.second->heartbeat();
-        }
+//         for (auto& n : nodes) {
+//             co_await n.second->heartbeat();
+//         }
 
-        while (pending_add.size()) {
-            auto [server, seed] = pending_add.front();
-            pending_add.pop();
+//         while (pending_add.size()) {
+//             auto [server, seed] = pending_add.front();
+//             pending_add.pop();
 
-            auto n = nodes[server] =
-                std::shared_ptr<Node>(new Node(server, seed, 1));
-            co_spawn(io, node_listener(*n),
-                     boost::asio::bind_cancellation_slot(
-                         n->cancel_signal.slot(), detached));
-        }
+//             auto n = nodes[server] =
+//                 std::shared_ptr<Node>(new Node(server, seed, 1));
+//             co_spawn(io, node_listener(*n),
+//                      boost::asio::bind_cancellation_slot(
+//                          n->cancel_signal.slot(), detached));
+//         }
 
-        while (pending_remove.size()) {
-        }
+//         while (pending_remove.size()) {
+//         }
 
-        /* heartbeat every second */
-        timer.expires_at(std::chrono::steady_clock::now() +
-                         std::chrono::seconds(1));
-    }
-}
+//         /* heartbeat every second */
+//         timer.expires_at(std::chrono::steady_clock::now() +
+//                          std::chrono::seconds(1));
+//     }
+// }
 
 static int port = 6000;
-awaitable<void> cp_process(map<string, shared_ptr<Node>>& nodes,
-                           tcp::socket socket) {
-    auto executor = co_await this_coro::executor;
-    for (;;) {
+// boost::cobalt::task<void> cp_process(map<string, shared_ptr<Node>>& nodes,
+//                                      tcp::socket socket) {
+//     auto executor = co_await this_coro::executor;
+//     for (;;) {
 
-        char data[1024] = {};
-        std::size_t n = co_await socket.async_read_some(
-            boost::asio::buffer(data), boost::asio::use_awaitable);
+//         char data[1024] = {};
+//         std::size_t n = co_await socket.async_read_some(
+//             boost::asio::buffer(data), boost::cobalt::use_task);
 
-        string payload = string(data, n);
-        auto p = payload.find(":");
-        auto cmd = payload.substr(0, p);
-        if (cmd == "an") {
-            /* TODO: parse address */
-            auto seed = payload.substr(p + 1);
+//         string payload = string(data, n);
+//         auto p = payload.find(":");
+//         auto cmd = payload.substr(0, p);
+//         if (cmd == "an") {
+//             /* TODO: parse address */
+//             auto seed = payload.substr(p + 1);
 
-            pending_add.push(
-                {"127.0.0.1:" + to_string(port++), "127.0.0.1:5555"});
+//             pending_add.push(
+//                 {"127.0.0.1:" + to_string(port++), "127.0.0.1:5555"});
 
-            auto resp = "ana:" + seed;
-            co_await async_write(socket,
-                                 boost::asio::buffer(resp.c_str(), resp.size()),
-                                 boost::asio::use_awaitable);
-        } else if (cmd == "rn") {
-            auto seed = payload.substr(p + 1);
-            auto& target = (*nodes.begin()).second->cancel_signal;
-            target.emit(boost::asio::cancellation_type::all);
+//             auto resp = "ana:" + seed;
+//             co_await boost::asio::async_write(socket,
+//                                  boost::asio::buffer(resp.c_str(),
+//                                  resp.size()), boost::cobalt::use_task);
+//         } else if (cmd == "rn") {
+//             auto seed = payload.substr(p + 1);
+//             auto& target = (*nodes.begin()).second->cancel_signal;
+//             target.emit(boost::asio::cancellation_type::all);
 
-            /* TODO: delete heartbeat */
-            /* TODO: wait for all current connnections to drain */
-        }
-    }
-    co_return;
-}
+//             /* TODO: delete heartbeat */
+//             /* TODO: wait for all current connnections to drain */
+//         }
+//     }
+//     co_return;
+// }
 
-awaitable<void> system_listener(map<string, shared_ptr<Node>>& nodes) {
-    auto executor = co_await this_coro::executor;
+// boost::cobalt::task<void>
+// system_listener(map<string, shared_ptr<Node>>& nodes) {
+//     auto executor = co_await this_coro::executor;
 
-    tcp::acceptor acceptor(executor, {tcp::v4(), 5001});
-    for (;;) {
-        auto socket =
-            co_await acceptor.async_accept(boost::asio::use_awaitable);
-        co_spawn(executor, cp_process(nodes, std::move(socket)), detached);
-    }
-}
+//     tcp::acceptor acceptor(executor, {tcp::v4(), 5001});
+//     for (;;) {
+//         auto socket =
+//             co_await acceptor.async_accept(boost::cobalt::use_task);
+//         co_spawn(executor, cp_process(nodes, std::move(socket)), detached);
+//     }
+// }
 
 int main() {
     constexpr int NODES = 2;
@@ -330,18 +302,16 @@ int main() {
                 seed = addr_port;
             }
             /* node control plane */
-            co_spawn(io_context, node_listener(*n),
-                     boost::asio::bind_cancellation_slot(
-                         n->cancel_signal.slot(), detached));
+            spawn(io_context, node_listener(*n), boost::asio::detached);
         }
 
-        /* distributed system heartbeat */
-        co_spawn(io_context, heartbeat(nodes), detached);
+        // /* distributed system heartbeat */
+        // co_spawn(io_context, heartbeat(nodes), detached);
 
-        /* distributed system control plane */
-        co_spawn(io_context, system_listener(nodes), detached);
+        // /* distributed system control plane */
+        // co_spawn(io_context, system_listener(nodes), detached);
 
-        io_context.run();
+        // io_context.run();
     });
 
     /* test code here */
