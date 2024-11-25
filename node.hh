@@ -150,6 +150,7 @@ class Node final {
         int gossip_tx;
     };
     std::shared_ptr<boost::asio::steady_timer> cancel;
+    uint32_t outstanding = 0;
 
   private:
     Partitioner& p = Partitioner::instance();
@@ -612,7 +613,12 @@ class Node final {
 
     boost::cobalt::task<void> rx_process(boost::asio::ip::tcp::socket socket) {
 
-        for (;;) {
+        std::cout << self << ":" << "rx_process() spawned!" << std::endl;
+
+        ++outstanding;
+
+        // for (;;)
+        {
             char data[1024] = {};
             std::size_t n = co_await socket.async_read_some(
                 boost::asio::buffer(data), boost::cobalt::use_task);
@@ -748,6 +754,10 @@ class Node final {
             }
         }
 
+        std::cout << self << ":" << "rx_process() end!" << std::endl;
+
+        --outstanding;
+
         co_return;
     }
 
@@ -775,7 +785,16 @@ class Node final {
             executor, {boost::asio::ip::tcp::v4(), stoi(port)});
         for (;;) {
 
-            // auto socket =
+// auto socket =
+#if 1
+            auto socket =
+                co_await acceptor.async_accept(boost::cobalt::use_task);
+            std::cout << "New connection accepted from: "
+                      << socket.remote_endpoint() << "\n";
+
+            boost::cobalt::spawn(executor, rx_process(std::move(socket)),
+                                 boost::asio::detached);
+#else
             boost::variant2::variant<boost::asio::ip::tcp::socket, bool> nx =
                 co_await boost::cobalt::race(
                     acceptor.async_accept(boost::cobalt::use_task),
@@ -793,6 +812,7 @@ class Node final {
                           << std::endl;
                 break;
             }
+#endif
         }
     }
 

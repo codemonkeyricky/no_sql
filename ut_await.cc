@@ -49,6 +49,17 @@ struct Cluster {
             }
 
             while (pending_remove.size()) {
+
+                auto server = pending_remove.front();
+                pending_remove.pop();
+
+                nodes[server]->cancel->cancel();
+
+                while (nodes[server]->outstanding) {
+                    /* wait for oustanding connections to drain */
+                }
+
+                nodes.erase(server);
             }
 
             ready = true;
@@ -62,6 +73,7 @@ struct Cluster {
             /* heartbeat every second */
             timer.expires_at(std::chrono::steady_clock::now() +
                              std::chrono::seconds(1));
+            co_await timer.async_wait(boost::cobalt::use_task);
         }
     }
 
@@ -107,7 +119,7 @@ boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
 
             auto to_remove = payload.substr(p + 1);
 
-            cluster->nodes[to_remove]->cancel->cancel();
+            cluster->pending_remove.push(to_remove);
 
             // auto& target = (*nodes.begin()).second->cancel_signal;
             // target.emit(boost::asio::cancellation_type::all);
@@ -238,6 +250,7 @@ int main() {
             /* TODO: wait for ready */
             usleep(500 * 1000);
 
+#if 0
             tx_payload = "remove_node:127.0.0.1:6000";
             co_await boost::asio::async_write(
                 socket, boost::asio::buffer(tx_payload, tx_payload.size()),
@@ -246,7 +259,7 @@ int main() {
             rx_payload[1024] = {};
             n = co_await socket.async_read_some(boost::asio::buffer(rx_payload),
                                                 boost::cobalt::use_task);
-
+#endif
             while (true) {
                 usleep(500 * 1000);
             }
