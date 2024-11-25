@@ -90,14 +90,16 @@ boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
         string payload = string(data, n);
         auto p = payload.find(":");
         auto cmd = payload.substr(0, p);
-        if (cmd == "an") {
-            /* TODO: parse address */
-            auto seed = payload.substr(p + 1);
+        if (cmd == "add_node") {
 
-            cluster->pending_add.push(
-                {"127.0.0.1:" + to_string(port++), "127.0.0.1:5555"});
+            auto v = payload.substr(p + 1);
+            p = v.find(",");
+            auto addr = v.substr(0, p);
+            auto seed = v.substr(p + 1);
 
-            auto resp = "ana:" + seed;
+            cluster->pending_add.push({addr, seed});
+
+            auto resp = "add_node_ack:" + addr;
             co_await boost::asio::async_write(
                 socket, boost::asio::buffer(resp.c_str(), resp.size()),
                 boost::cobalt::use_task);
@@ -163,11 +165,11 @@ int main() {
                                  boost::asio::detached);
         }
 
-        // /* distributed system heartbeat */
+        /* distributed system heartbeat */
         boost::cobalt::spawn(io_context, cluster->heartbeat(),
                              boost::asio::detached);
 
-        // /* distributed system control plane */
+        /* distributed system control plane */
         boost::cobalt::spawn(io_context, system_listener(cluster),
                              boost::asio::detached);
 
@@ -211,11 +213,6 @@ int main() {
                 std::size_t n = co_await socket.async_read_some(
                     boost::asio::buffer(rx_payload), boost::cobalt::use_task);
 
-                // auto serialized_data = std::string(rx_payload + 3, n - 3);
-                // auto remote_map = deserialize<NodeMap>(serialized_data);
-                // local_map = remote_map = local_map + remote_map;
-                // update_lookup();
-
                 /* TODO: account for peer death */
                 volatile int dummy = 0;
 
@@ -224,6 +221,11 @@ int main() {
                 // connect!"
                 //           << std::endl;
             }
+
+            std::string tx_payload = "add_node:127.0.0.1:6000,127.0.0.1:5555";
+            co_await boost::asio::async_write(
+                socket, boost::asio::buffer(tx_payload, tx_payload.size()),
+                boost::cobalt::use_task);
         }(),
         boost::asio::detached);
 
