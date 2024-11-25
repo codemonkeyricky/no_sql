@@ -16,6 +16,7 @@
 
 // #include <boost/asio/cancellation_signal.hpp>
 // #include <boost/asio/co_spawn.hpp>
+#include <boost/asio.hpp>
 #include <boost/asio/connect.hpp>
 // #include <boost/asio/detached.hpp>
 #include <boost/asio/io_context.hpp>
@@ -746,6 +747,43 @@ class Node final {
         }
 
         co_return;
+    }
+
+    boost::cobalt::task<void> node_listener() {
+        auto executor = co_await boost::cobalt::this_coro::executor;
+
+        // auto cancellation = co_await asio::this_coro::cancellation_state;
+
+        auto p = get_addr().find(":");
+        auto addr = get_addr().substr(0, p);
+        auto port = get_addr().substr(p + 1);
+
+        boost::asio::steady_timer cancelTimer{
+            executor, std::chrono::steady_clock::duration::max()};
+
+        boost::asio::ip::tcp::acceptor acceptor(
+            executor, {boost::asio::ip::tcp::v4(), stoi(port)});
+        for (;;) {
+
+            auto socket =
+                co_await acceptor.async_accept(boost::cobalt::use_task);
+            boost::cobalt::spawn(executor, rx_process(std::move(socket)),
+                                 boost::asio::detached);
+
+            // using namespace boost::asio::experimental::awaitable_operators;
+
+            // auto result{
+            //     co_await (acceptor.async_accept(boost::cobalt::use_task) ||
+            //               Cancelled(cancelTimer))};
+
+            // // Check which awaitable completed
+
+            // if (result.index() == 0) {
+            //     auto socket = std::move(std::get<0>(result));
+            //     co_spawn(executor, rx_process(node, std::move(socket)),
+            //     detached);
+            // }
+        }
     }
 
     const NodeMap& peers() const { return local_map; }

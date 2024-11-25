@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <queue>
 #include <unordered_map>
 
@@ -19,7 +20,14 @@
 
 using namespace std;
 
-using Cluster = map<string, shared_ptr<Node>>;
+struct Cluster {
+    map<string, unique_ptr<Node>> nodes;
+
+    // unique_ptr<Node>& operator[](string& name) { return nodes[name]; }
+};
+
+static queue<array<string, 2>> pending_add;
+static queue<string> pending_remove;
 
 /* shared_ptr to cluster */
 static shared_ptr<Cluster> cluster;
@@ -29,51 +37,13 @@ static shared_ptr<Cluster> cluster;
 //     co_await cancelTimer.async_wait(redirect_error(use_awaitable, ec));
 // }
 
-boost::cobalt::task<void> node_listener(shared_ptr<Node> node) {
-    auto executor = co_await boost::cobalt::this_coro::executor;
-
-    // auto cancellation = co_await asio::this_coro::cancellation_state;
-
-    auto p = node->get_addr().find(":");
-    auto addr = node->get_addr().substr(0, p);
-    auto port = node->get_addr().substr(p + 1);
-
-    boost::asio::steady_timer cancelTimer{
-        executor, std::chrono::steady_clock::duration::max()};
-
-    boost::asio::ip::tcp::acceptor acceptor(
-        executor, {boost::asio::ip::tcp::v4(), stoi(port)});
-    for (;;) {
-
-        auto socket = co_await acceptor.async_accept(boost::cobalt::use_task);
-        boost::cobalt::spawn(executor, node->rx_process(std::move(socket)),
-                             boost::asio::detached);
-
-        // using namespace boost::asio::experimental::awaitable_operators;
-
-        // auto result{
-        //     co_await (acceptor.async_accept(boost::cobalt::use_task) ||
-        //               Cancelled(cancelTimer))};
-
-        // // Check which awaitable completed
-
-        // if (result.index() == 0) {
-        //     auto socket = std::move(std::get<0>(result));
-        //     co_spawn(executor, rx_process(node, std::move(socket)),
-        //     detached);
-        // }
-    }
-}
-static queue<array<string, 2>> pending_add;
-static queue<string> pending_remove;
-
 boost::cobalt::task<void> heartbeat(shared_ptr<Cluster> cluster) {
     auto io = co_await boost::cobalt::this_coro::executor;
     boost::asio::steady_timer timer(io);
 
     for (;;) {
 
-        for (auto& n : (*cluster)) {
+        for (auto& n : cluster->nodes) {
             co_await n.second->heartbeat();
         }
 
@@ -81,9 +51,10 @@ boost::cobalt::task<void> heartbeat(shared_ptr<Cluster> cluster) {
             auto [server, seed] = pending_add.front();
             pending_add.pop();
 
-            auto n = (*cluster)[server] =
-                std::shared_ptr<Node>(new Node(server, seed, 1));
-            boost::cobalt::spawn(io, node_listener(n), boost::asio::detached);
+            auto& n = cluster->nodes[server] =
+                std::unique_ptr<Node>(new Node(server, seed, 1));
+
+            boost::cobalt::spawn(io, n->node_listener(), boost::asio::detached);
         }
 
         while (pending_remove.size()) {
@@ -161,13 +132,13 @@ int main() {
         for (auto i = 0; i < NODES; ++i) {
 
             string addr_port = addr + ":" + to_string(port++);
-            auto n = (*cluster)[addr_port] =
-                std::shared_ptr<Node>(new Node(addr_port, seed, 1));
+            auto& n = cluster->nodes[addr_port] =
+                std::unique_ptr<Node>(new Node(addr_port, seed, 1));
             if (seed == "") {
                 seed = addr_port;
             }
             /* node control plane */
-            boost::cobalt::spawn(io_context, node_listener(n),
+            boost::cobalt::spawn(io_context, n->node_listener(),
                                  boost::asio::detached);
         }
 
