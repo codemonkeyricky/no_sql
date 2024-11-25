@@ -155,6 +155,8 @@ class Node final {
     Partitioner& p = Partitioner::instance();
     Time& t = Time::instance();
 
+    boost::asio::steady_timer cancel;
+
     NodeMap local_map;
     Lookup lookup;
     std::map<hash, std::pair<key, value>> db;
@@ -768,7 +770,7 @@ class Node final {
         auto addr = get_addr().substr(0, p);
         auto port = get_addr().substr(p + 1);
 
-        boost::asio::steady_timer cancel{
+        cancel = boost::asio::steady_timer{
             executor, std::chrono::steady_clock::duration::max()};
 
         boost::asio::ip::tcp::acceptor acceptor(
@@ -789,7 +791,7 @@ class Node final {
                 break;
             }
             case 1:
-                std::cout << self << ":" << "node_listener() - canceld!"
+                std::cout << self << ":" << "node_listener() - cancelled!"
                           << std::endl;
                 break;
             }
