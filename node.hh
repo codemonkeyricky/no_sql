@@ -771,6 +771,8 @@ class Node final {
 
     boost::cobalt::task<void> node_listener() {
 
+        ++outstanding;
+
         auto executor = co_await boost::cobalt::this_coro::executor;
 
         auto p = get_addr().find(":");
@@ -783,10 +785,11 @@ class Node final {
 
         boost::asio::ip::tcp::acceptor acceptor(
             executor, {boost::asio::ip::tcp::v4(), stoi(port)});
-        for (;;) {
+        bool running = true;
+        while (running) {
 
 // auto socket =
-#if 1
+#if 0
             auto socket =
                 co_await acceptor.async_accept(boost::cobalt::use_task);
             std::cout << "New connection accepted from: "
@@ -808,12 +811,14 @@ class Node final {
                 break;
             }
             case 1:
+                running = false;
                 std::cout << self << ":" << "node_listener() - cancelled!"
                           << std::endl;
                 break;
             }
 #endif
         }
+        --outstanding;
     }
 
     const NodeMap& peers() const { return local_map; }

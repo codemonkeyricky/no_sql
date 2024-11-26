@@ -24,8 +24,25 @@ struct Cluster {
 
     queue<array<string, 2>> pending_add;
     queue<string> pending_remove;
+    queue<string> removed;
     map<string, unique_ptr<Node>> nodes;
     bool ready = false;
+
+    boost::cobalt::task<void> node_remover(string&& server) {
+        nodes[server]->cancel->cancel();
+
+        auto io = co_await boost::cobalt::this_coro::executor;
+        boost::asio::steady_timer timer(io);
+
+        /* wait until all connections drained */
+        while (nodes[server]->outstanding) {
+            timer.expires_at(std::chrono::steady_clock::now() +
+                             std::chrono::milliseconds(100));
+            co_await timer.async_wait(boost::cobalt::use_task);
+        }
+
+        removed.push(server);
+    }
 
     boost::cobalt::task<void> heartbeat() {
         auto io = co_await boost::cobalt::this_coro::executor;
@@ -53,13 +70,15 @@ struct Cluster {
                 auto server = pending_remove.front();
                 pending_remove.pop();
 
-                nodes[server]->cancel->cancel();
+                boost::cobalt::spawn(io, node_remover(move(server)),
+                                     boost::asio::detached);
+            }
 
-                while (nodes[server]->outstanding) {
-                    /* wait for oustanding connections to drain */
-                }
+            while (removed.size()) {
 
-                nodes.erase(server);
+                /* remove thread */
+                nodes.erase(removed.front());
+                removed.pop();
             }
 
             ready = true;
@@ -71,9 +90,9 @@ struct Cluster {
             }
 
             /* heartbeat every second */
-            timer.expires_at(std::chrono::steady_clock::now() +
-                             std::chrono::seconds(1));
-            co_await timer.async_wait(boost::cobalt::use_task);
+            // timer.expires_at(std::chrono::steady_clock::now() +
+            //                  std::chrono::seconds(1));
+            // co_await timer.async_wait(boost::cobalt::use_task);
         }
     }
 
@@ -250,7 +269,7 @@ int main() {
             /* TODO: wait for ready */
             usleep(500 * 1000);
 
-#if 0
+#if 1
             tx_payload = "remove_node:127.0.0.1:6000";
             co_await boost::asio::async_write(
                 socket, boost::asio::buffer(tx_payload, tx_payload.size()),
