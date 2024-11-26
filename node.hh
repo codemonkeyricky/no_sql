@@ -562,9 +562,10 @@ class Node final {
 
         LookupEntry target = {key_hash, 0, 0};
         auto it = lookup.lower_bound(target);
+        auto copy = lookup;
 
         /* walk the ring until we find a working node */
-        int rf = 1; /* TODO */ // replication_factor;
+        int rf = replication_factor;
         while (true) {
 
             /* wrap around if needed */
@@ -581,6 +582,8 @@ class Node final {
                 /* forward to remote if alive */
 
                 co_await write_remote(nodehash_lookup[id], key, value);
+
+                // assert(copy == lookup);
 
                 ++stats.write_fwd;
             }
