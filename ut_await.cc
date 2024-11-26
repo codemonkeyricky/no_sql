@@ -23,12 +23,12 @@ using namespace std;
 struct Cluster {
 
     queue<array<string, 2>> pending_add;
-    queue<string> pending_remove;
-    queue<string> removed;
+    queue<string> to_be_removed;
+    queue<string> can_be_removed;
     map<string, unique_ptr<Node>> nodes;
     bool ready = false;
 
-    boost::cobalt::task<void> node_remover(string&& server) {
+    boost::cobalt::task<void> node_drain(string&& server) {
         nodes[server]->cancel->cancel();
 
         auto io = co_await boost::cobalt::this_coro::executor;
@@ -41,7 +41,7 @@ struct Cluster {
             co_await timer.async_wait(boost::cobalt::use_task);
         }
 
-        removed.push(server);
+        can_be_removed.push(server);
     }
 
     boost::cobalt::task<void> heartbeat() {
@@ -65,20 +65,20 @@ struct Cluster {
                                      boost::asio::detached);
             }
 
-            while (pending_remove.size()) {
+            while (to_be_removed.size()) {
 
-                auto server = pending_remove.front();
-                pending_remove.pop();
+                auto server = to_be_removed.front();
+                to_be_removed.pop();
 
-                boost::cobalt::spawn(io, node_remover(move(server)),
+                boost::cobalt::spawn(io, node_drain(move(server)),
                                      boost::asio::detached);
             }
 
-            while (removed.size()) {
+            while (can_be_removed.size()) {
 
                 /* remove thread */
-                nodes.erase(removed.front());
-                removed.pop();
+                nodes.erase(can_be_removed.front());
+                can_be_removed.pop();
             }
 
             ready = true;
@@ -138,7 +138,7 @@ boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
 
             auto to_remove = payload.substr(p + 1);
 
-            cluster->pending_remove.push(to_remove);
+            cluster->to_be_removed.push(to_remove);
 
             // auto& target = (*nodes.begin()).second->cancel_signal;
             // target.emit(boost::asio::cancellation_type::all);
