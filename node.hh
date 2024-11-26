@@ -318,7 +318,9 @@ class Node final {
         for (auto& peer : local_map.nodes) {
             /* exclude ourselves */
             if (peer.first != self) {
-                peers.push_back(peer.first);
+                if (peer.second.status != NodeMap::Node::Down) {
+                    peers.push_back(peer.first);
+                }
             }
         }
 
@@ -373,6 +375,9 @@ class Node final {
             } catch (std::exception& e) {
                 std::cout << self << ":" << "heartbeat() - failed to connect!"
                           << std::endl;
+                local_map.nodes[peer_addr].status = NodeMap::Node::Down;
+                local_map.nodes[peer_addr].timestamp = current_time_ms();
+                update_lookup();
             }
             --k;
         }

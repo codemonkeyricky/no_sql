@@ -257,6 +257,9 @@ int main() {
                 //           << std::endl;
             }
 
+            /* TODO: wait for ready */
+            usleep(5 * 1000 * 1000);
+
             std::string tx_payload = "add_node:127.0.0.1:6000,127.0.0.1:5555";
             co_await boost::asio::async_write(
                 socket, boost::asio::buffer(tx_payload, tx_payload.size()),
@@ -267,7 +270,7 @@ int main() {
                 boost::asio::buffer(rx_payload), boost::cobalt::use_task);
 
             /* TODO: wait for ready */
-            usleep(500 * 1000);
+            usleep(5 * 1000 * 1000);
 
 #if 1
             tx_payload = "remove_node:127.0.0.1:6000";
