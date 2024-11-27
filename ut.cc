@@ -145,6 +145,21 @@ int main() {
     boost::cobalt::spawn(
         io,
         []() -> boost::cobalt::task<void> {
+            auto async_connect = [](const string& addr, const string& port)
+                -> boost::cobalt::task<boost::asio::ip::tcp::socket> {
+                auto io = co_await boost::cobalt::this_coro::executor;
+                boost::asio::ip::tcp::socket socket(io);
+                boost::asio::ip::tcp::resolver resolver(io);
+                auto ep = resolver.resolve(addr, port);
+
+                boost::asio::async_connect(
+                    socket, ep,
+                    [](const boost::system::error_code& error,
+                       const boost::asio::ip::tcp::endpoint&) {});
+
+                co_return socket;
+            };
+
             auto remove_node = [](const string& cc_addr, const string& cc_port,
                                   const string& node)
                 -> boost::cobalt::task<boost::system::error_code> {
@@ -152,7 +167,7 @@ int main() {
                     auto io = co_await boost::cobalt::this_coro::executor;
                     boost::asio::ip::tcp::resolver resolver(io);
                     boost::asio::ip::tcp::socket socket(io);
-                    auto ep = resolver.resolve(cc_addr, cc_port);
+                    // auto ep = resolver.resolve(cc_addr, cc_port);
 
                     string tx = "remove_node:" + node;
                     co_await boost::asio::async_write(
