@@ -28,6 +28,7 @@ cc_test(
         "ut.cc",
         "node.hh",
         "directory.hh",
+        "cluster.hh"
     ], 
     copts = [
         "-std=c++20",
