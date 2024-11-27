@@ -29,6 +29,7 @@
 
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
+#include <boost/exception/diagnostic_information.hpp>
 #include <boost/serialization/map.hpp>
 #include <boost/serialization/set.hpp>
 #include <boost/serialization/vector.hpp>
@@ -565,7 +566,7 @@ class Node final {
         auto copy = lookup;
 
         /* walk the ring until we find a working node */
-        int rf = replication_factor;
+        int rf = 1; // TODO: replication_factor;
         while (true) {
 
             /* wrap around if needed */
@@ -788,6 +789,10 @@ class Node final {
                 }
             }
         } catch (const std::exception& e) {
+
+            // std::string info = boost::diagnostic_information(e);
+            // std::cout << info << std::endl;
+
             // std::cerr << "Connection error: " << e.what() << std::endl;
         }
 
