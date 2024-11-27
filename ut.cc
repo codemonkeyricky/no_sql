@@ -187,7 +187,21 @@ int main() {
 
             constexpr int COUNT = 1024;
 
+            auto io = co_await boost::cobalt::this_coro::executor;
             auto socket = co_await async_connect("127.0.0.1", "5001");
+
+            // boost::asio::ip::tcp::resolver resolver(io);
+            // boost::asio::ip::tcp::socket socket(io);
+            // auto ep = resolver.resolve();
+
+            boost::system::error_code err_code;
+            // boost::asio::async_connect(
+            //     socket, ep,
+            //     [&socket, &err_code](const boost::system::error_code& error,
+            //                          const boost::asio::ip::tcp::endpoint&) {
+            //         err_code = error;
+            //         // std::cout << "error = " << error << std::endl;
+            //     });
 
             try {
 
