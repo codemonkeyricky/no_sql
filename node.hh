@@ -501,7 +501,7 @@ class Node final {
                                            const std::string& key,
                                            const std::string& value) {
 
-        std::cout << self << ":" << "write_remote() invoked!" << std::endl;
+        // std::cout << self << ":" << "write_remote() invoked!" << std::endl;
 
         auto io = co_await boost::asio::this_coro::executor;
 
@@ -520,23 +520,23 @@ class Node final {
                 [&socket](const boost::system::error_code& error,
                           const boost::asio::ip::tcp::endpoint&) {});
 
-            std::cout << self << ":" << "write_remote(): writing to "
-                      << peer_addr << std::endl;
+            // std::cout << self << ":" << "write_remote(): writing to "
+            //           << peer_addr << std::endl;
 
             const auto payload = "wf:" + key + "=" + value;
             co_await boost::asio::async_write(
                 socket, boost::asio::buffer(payload, payload.size()),
                 boost::cobalt::use_task);
 
-            std::cout << self << ":" << "write_remote(): waiting for ack... "
-                      << std::endl;
+            // std::cout << self << ":" << "write_remote(): waiting for ack... "
+            //           << std::endl;
 
             char rx[1024] = {};
             auto n = co_await socket.async_read_some(boost::asio::buffer(rx),
                                                      boost::cobalt::use_task);
 
-            std::cout << self << ":" << "write_remote(): ack received! "
-                      << std::endl;
+            // std::cout << self << ":" << "write_remote(): ack received! "
+            //           << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "Connection error: " << e.what() << std::endl;
             assert(0);
@@ -548,8 +548,8 @@ class Node final {
     boost::cobalt::task<void> write(const std::string& key,
                                     const std::string& value,
                                     bool coordinator = true) {
-        std::cout << "write(): " << key << "=" << value << ", " << coordinator
-                  << std::endl;
+        // std::cout << "write(): " << key << "=" << value << ", " << coordinator
+        //           << std::endl;
 
         auto key_hash =
             static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
@@ -609,7 +609,7 @@ class Node final {
     boost::cobalt::task<std::map<hash, std::pair<key, value>>>
     stream_remote(const std::string& peer, const hash i, const hash j) {
 
-        std::cout << self << ":" << "stream_remote() invoked!" << std::endl;
+        // std::cout << self << ":" << "stream_remote() invoked!" << std::endl;
 
         auto io = co_await boost::asio::this_coro::executor;
 
