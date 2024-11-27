@@ -259,7 +259,7 @@ class Node final {
     Node(const Node&) = delete; /* cannot be copied */
     Node(Node&&) = delete;
 
-    ~Node() {}
+    // ~Node() {}
 
     /* stream data: [i, j) */
     std::map<hash, std::pair<key, value>> stream(hash i, hash j) {

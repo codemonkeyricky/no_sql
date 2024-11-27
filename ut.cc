@@ -352,6 +352,7 @@ int main() {
             //         boost::asio::buffer(rx_payload),
             //         boost::cobalt::use_task);
             // }
+            exit(0);
             while (true) {
                 usleep(500 * 1000);
             }
