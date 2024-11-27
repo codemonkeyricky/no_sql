@@ -60,6 +60,12 @@ boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
             // auto& target = (*nodes.begin()).second->cancel_signal;
             // target.emit(boost::asio::cancellation_type::all);
 
+            auto resp = "remove_node_ack:" + to_remove;
+            
+            co_await boost::asio::async_write(
+                socket, boost::asio::buffer(resp.c_str(), resp.size()),
+                boost::cobalt::use_task);
+
             /* TODO: delete heartbeat */
             /* TODO: wait for all current connnections to drain */
         } else if (cmd == "ready") {
@@ -94,7 +100,7 @@ boost::cobalt::task<void> system_listener(shared_ptr<Cluster> cluster) {
 int main() {
     constexpr int NODES = 5;
 
-    thread db_instance([] {
+    thread cluster_instance([] {
         boost::asio::io_context io_context(1);
         boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
         signals.async_wait([&](auto, auto) { io_context.stop(); });
@@ -178,7 +184,7 @@ int main() {
             usleep(1 * 1000 * 1000);
 
             /* add new node */
-            if (0) {
+            if (1) {
                 std::string tx_payload =
                     "add_node:127.0.0.1:6000,127.0.0.1:5555";
                 co_await boost::asio::async_write(
@@ -198,7 +204,7 @@ int main() {
                 boost::asio::ip::tcp::socket socket(io);
                 auto ep = resolver.resolve("127.0.0.1", "5555");
 
-                constexpr int COUNT = 1024;
+                constexpr int COUNT = 8;
 
                 boost::system::error_code err_code;
                 /* write */
@@ -258,17 +264,18 @@ int main() {
                 }
             }
 
-            // if (0) {
-            //     string tx_payload = "remove_node:127.0.0.1:6000";
-            //     co_await boost::asio::async_write(
-            //         socket, boost::asio::buffer(tx_payload,
-            //         tx_payload.size()), boost::cobalt::use_task);
+            if (1) {
+                string tx_payload = "remove_node:127.0.0.1:6000";
+                co_await boost::asio::async_write(
+                    socket, boost::asio::buffer(tx_payload, tx_payload.size()),
+                    boost::cobalt::use_task);
 
-            //     char rx_payload[1024] = {};
-            //     n = co_await socket.async_read_some(
-            //         boost::asio::buffer(rx_payload),
-            //         boost::cobalt::use_task);
-            // }
+                char rx_payload[1024] = {};
+                auto n = co_await socket.async_read_some(
+                    boost::asio::buffer(rx_payload), boost::cobalt::use_task);
+
+                volatile int dummy = 0;
+            }
             exit(0);
             while (true) {
                 usleep(500 * 1000);
@@ -280,7 +287,7 @@ int main() {
 
     /* wait for cluster ready */
 
-    db_instance.join();
+    cluster_instance.join();
 
     cout << "### " << endl;
 }

@@ -374,8 +374,8 @@ class Node final {
                 /* TODO: account for peer death */
 
             } catch (std::exception& e) {
-                std::cout << self << ":" << "heartbeat() - failed to connect!"
-                          << std::endl;
+                std::cout << self << ":" << "heartbeat() - failed to connect "
+                          << peer_addr << std::endl;
                 local_map.nodes[peer_addr].status = NodeMap::Node::Down;
                 local_map.nodes[peer_addr].timestamp = current_time_ms();
                 update_lookup();
