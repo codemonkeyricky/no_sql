@@ -160,6 +160,19 @@ int main() {
                 co_return socket;
             };
 
+            auto add_node =
+                [](boost::asio::ip::tcp::socket& socket,
+                   const string& payload) -> boost::cobalt::task<void> {
+                std::string tx_payload = "add_node:" + payload;
+                co_await boost::asio::async_write(
+                    socket, boost::asio::buffer(tx_payload, tx_payload.size()),
+                    boost::cobalt::use_task);
+
+                char rx_payload[1024] = {};
+                std::size_t n = co_await socket.async_read_some(
+                    boost::asio::buffer(rx_payload), boost::cobalt::use_task);
+            };
+
             auto remove_node = [](const string& cc_addr, const string& cc_port,
                                   const string& node)
                 -> boost::cobalt::task<boost::system::error_code> {
@@ -190,18 +203,7 @@ int main() {
             auto io = co_await boost::cobalt::this_coro::executor;
             auto socket = co_await async_connect("127.0.0.1", "5001");
 
-            // boost::asio::ip::tcp::resolver resolver(io);
-            // boost::asio::ip::tcp::socket socket(io);
-            // auto ep = resolver.resolve();
-
             boost::system::error_code err_code;
-            // boost::asio::async_connect(
-            //     socket, ep,
-            //     [&socket, &err_code](const boost::system::error_code& error,
-            //                          const boost::asio::ip::tcp::endpoint&) {
-            //         err_code = error;
-            //         // std::cout << "error = " << error << std::endl;
-            //     });
 
             try {
 
@@ -231,15 +233,19 @@ int main() {
 
             /* add new node */
             if (1) {
-                std::string tx_payload =
-                    "add_node:127.0.0.1:6000,127.0.0.1:5555";
-                co_await boost::asio::async_write(
-                    socket, boost::asio::buffer(tx_payload, tx_payload.size()),
-                    boost::cobalt::use_task);
 
-                char rx_payload[1024] = {};
-                std::size_t n = co_await socket.async_read_some(
-                    boost::asio::buffer(rx_payload), boost::cobalt::use_task);
+                add_node(socket, "127.0.0.1:6000,127.0.0.1:5555");
+
+                // std::string tx_payload =
+                //     "add_node:127.0.0.1:6000,127.0.0.1:5555";
+                // co_await boost::asio::async_write(
+                //     socket, boost::asio::buffer(tx_payload,
+                //     tx_payload.size()), boost::cobalt::use_task);
+
+                // char rx_payload[1024] = {};
+                // std::size_t n = co_await socket.async_read_some(
+                //     boost::asio::buffer(rx_payload),
+                //     boost::cobalt::use_task);
 
                 /* TODO: wait for ready */
                 usleep(1 * 1000 * 1000);
