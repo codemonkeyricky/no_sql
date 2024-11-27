@@ -3,6 +3,8 @@
 #include "node.hh"
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/experimental/parallel_group.hpp>
+#include <boost/system/detail/errc.hpp>
+#include <boost/system/detail/error_code.hpp>
 #include <chrono>
 #include <fstream>
 #include <iomanip>
@@ -143,6 +145,31 @@ int main() {
     boost::cobalt::spawn(
         io,
         []() -> boost::cobalt::task<void> {
+            auto remove_node = [](const string& cc_addr, const string& cc_port,
+                                  const string& node)
+                -> boost::cobalt::task<boost::system::error_code> {
+                try {
+                    auto io = co_await boost::cobalt::this_coro::executor;
+                    boost::asio::ip::tcp::resolver resolver(io);
+                    boost::asio::ip::tcp::socket socket(io);
+                    auto ep = resolver.resolve(cc_addr, cc_port);
+
+                    string tx = "remove_node:" + node;
+                    co_await boost::asio::async_write(
+                        socket, boost::asio::buffer(tx, tx.size()),
+                        boost::cobalt::use_task);
+
+                    char rx_payload[1024] = {};
+                    auto n = co_await socket.async_read_some(
+                        boost::asio::buffer(rx_payload),
+                        boost::cobalt::use_task);
+                } catch (boost::system::system_error const& e) {
+                    co_return e.code();
+                }
+
+                co_return {};
+            };
+
             constexpr int COUNT = 1024;
 
             auto io = co_await boost::cobalt::this_coro::executor;
@@ -265,14 +292,18 @@ int main() {
             }
 
             if (1) {
-                string tx_payload = "remove_node:127.0.0.1:6000";
-                co_await boost::asio::async_write(
-                    socket, boost::asio::buffer(tx_payload, tx_payload.size()),
-                    boost::cobalt::use_task);
 
-                char rx_payload[1024] = {};
-                auto n = co_await socket.async_read_some(
-                    boost::asio::buffer(rx_payload), boost::cobalt::use_task);
+                co_await remove_node("127.0.0.1", "5001", "127.0.0.1:6000");
+
+                // string tx_payload = "remove_node:";
+                // co_await boost::asio::async_write(
+                //     socket, boost::asio::buffer(tx_payload,
+                //     tx_payload.size()), boost::cobalt::use_task);
+
+                // char rx_payload[1024] = {};
+                // auto n = co_await socket.async_read_some(
+                //     boost::asio::buffer(rx_payload),
+                //     boost::cobalt::use_task);
 
                 volatile int dummy = 0;
             }
