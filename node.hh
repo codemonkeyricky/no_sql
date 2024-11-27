@@ -548,7 +548,8 @@ class Node final {
     boost::cobalt::task<void> write(const std::string& key,
                                     const std::string& value,
                                     bool coordinator = true) {
-        // std::cout << "write(): " << key << "=" << value << ", " << coordinator
+        // std::cout << "write(): " << key << "=" << value << ", " <<
+        // coordinator
         //           << std::endl;
 
         auto key_hash =
@@ -564,17 +565,18 @@ class Node final {
         LookupEntry target = {key_hash, 0, 0};
         auto it = lookup.lower_bound(target);
         auto copy = lookup;
-
-        /* walk the ring until we find a working node */
-        int rf = 1; // TODO: replication_factor;
-        while (true) {
-
-            /* wrap around if needed */
+        std::vector<uint64_t> ids;
+        int rf = replication_factor;
+        while (rf-- > 0) {
             if (it == lookup.end())
                 it = lookup.begin();
+            ids.push_back((*it)[2]);
+        }
+
+        /* walk the ring until we find a working node */
+        for (auto id : ids) {
 
             /* parse */
-            auto [token, timestamp, id] = *it;
             if (id == this->id) {
                 /* local */
                 ++stats.write;
