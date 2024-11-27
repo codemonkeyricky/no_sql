@@ -90,9 +90,9 @@ struct Cluster {
             }
 
             /* heartbeat every second */
-            // timer.expires_at(std::chrono::steady_clock::now() +
-            //                  std::chrono::seconds(1));
-            // co_await timer.async_wait(boost::cobalt::use_task);
+            timer.expires_at(std::chrono::steady_clock::now() +
+                             std::chrono::seconds(1));
+            co_await timer.async_wait(boost::cobalt::use_task);
         }
     }
 };

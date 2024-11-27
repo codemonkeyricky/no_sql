@@ -61,7 +61,7 @@ boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
             // target.emit(boost::asio::cancellation_type::all);
 
             auto resp = "remove_node_ack:" + to_remove;
-            
+
             co_await boost::asio::async_write(
                 socket, boost::asio::buffer(resp.c_str(), resp.size()),
                 boost::cobalt::use_task);
@@ -143,6 +143,8 @@ int main() {
     boost::cobalt::spawn(
         io,
         []() -> boost::cobalt::task<void> {
+            constexpr int COUNT = 1024;
+
             auto io = co_await boost::cobalt::this_coro::executor;
             boost::asio::ip::tcp::resolver resolver(io);
             boost::asio::ip::tcp::socket socket(io);
@@ -203,8 +205,6 @@ int main() {
                 boost::asio::ip::tcp::resolver resolver(io);
                 boost::asio::ip::tcp::socket socket(io);
                 auto ep = resolver.resolve("127.0.0.1", "5555");
-
-                constexpr int COUNT = 8;
 
                 boost::system::error_code err_code;
                 /* write */
@@ -276,6 +276,42 @@ int main() {
 
                 volatile int dummy = 0;
             }
+
+            {
+                boost::asio::ip::tcp::resolver resolver(io);
+                boost::asio::ip::tcp::socket socket(io);
+                auto ep = resolver.resolve("127.0.0.1", "5555");
+
+                for (auto i = 0; i < COUNT; ++i) {
+
+                    boost::asio::async_connect(
+                        socket, ep,
+                        [&socket,
+                         &err_code](const boost::system::error_code& error,
+                                    const boost::asio::ip::tcp::endpoint&) {
+                            err_code = error;
+                            // std::cout << "error = " << error << std::endl;
+                        });
+
+                    std::string tx = "r:";
+                    tx += "k" + to_string(i);
+                    co_await boost::asio::async_write(
+                        socket, boost::asio::buffer(tx, tx.size()),
+                        boost::cobalt::use_task);
+
+                    char rx[1024] = {};
+                    std::size_t n = co_await socket.async_read_some(
+                        boost::asio::buffer(rx), boost::cobalt::use_task);
+
+                    string rxs(rx);
+                    auto p = rxs.find(":");
+                    auto s = rxs.substr(p + 1);
+                    assert(s == to_string(i));
+
+                    volatile int dummy = 0;
+                }
+            }
+
             exit(0);
             while (true) {
                 usleep(500 * 1000);
