@@ -145,31 +145,31 @@ int main() {
     boost::cobalt::spawn(
         io,
         []() -> boost::cobalt::task<void> {
-            auto async_connect = [](const string& addr, const string& port)
-                -> boost::cobalt::task<boost::asio::ip::tcp::socket> {
+            auto async_connect =
+                [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
+                   const string& addr,
+                   const string& port) -> boost::cobalt::task<void> {
                 auto io = co_await boost::cobalt::this_coro::executor;
-                boost::asio::ip::tcp::socket socket(io);
+                // static boost::asio::ip::tcp::socket socket(io);
                 boost::asio::ip::tcp::resolver resolver(io);
                 auto ep = resolver.resolve(addr, port);
 
                 boost::asio::async_connect(
-                    socket, ep,
+                    *socket, ep,
                     [](const boost::system::error_code& error,
                        const boost::asio::ip::tcp::endpoint&) {});
-
-                co_return socket;
             };
 
             auto add_node =
-                [](boost::asio::ip::tcp::socket& socket,
+                [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
                    const string& payload) -> boost::cobalt::task<void> {
                 std::string tx_payload = "add_node:" + payload;
                 co_await boost::asio::async_write(
-                    socket, boost::asio::buffer(tx_payload, tx_payload.size()),
+                    *socket, boost::asio::buffer(tx_payload, tx_payload.size()),
                     boost::cobalt::use_task);
 
                 char rx_payload[1024] = {};
-                std::size_t n = co_await socket.async_read_some(
+                std::size_t n = co_await socket->async_read_some(
                     boost::asio::buffer(rx_payload), boost::cobalt::use_task);
             };
 
@@ -243,40 +243,31 @@ int main() {
 
             constexpr int COUNT = 1024;
 
+#if 1
             auto io = co_await boost::cobalt::this_coro::executor;
-            auto socket = co_await async_connect("127.0.0.1", "5001");
+            // unique_ptr<boost::asio::ip::tcp::socket> ctrl(io);
 
-            boost::system::error_code err_code;
-
-            try {
-
-                std::string tx_payload = "ready:";
-                co_await boost::asio::async_write(
-                    socket, boost::asio::buffer(tx_payload, tx_payload.size()),
-                    boost::cobalt::use_task);
-
-                /* read results */
-
-                // std::cout << self << ":" << "gossip_tx() - #4" << std::endl;
-                char rx_payload[1024] = {};
-                std::size_t n = co_await socket.async_read_some(
-                    boost::asio::buffer(rx_payload), boost::cobalt::use_task);
-
-                /* TODO: account for peer death */
-                volatile int dummy = 0;
-
-            } catch (std::exception& e) {
-                // std::cout << self << ":" << "heartbeat() - failed to
-                // connect!"
-                //           << std::endl;
-            }
+            auto ctrl = unique_ptr<boost::asio::ip::tcp::socket>(
+                new boost::asio::ip::tcp::socket(io));
+            co_await async_connect(ctrl, "127.0.0.1", "5001");
+#else
+            auto io = co_await boost::cobalt::this_coro::executor;
+            boost::asio::ip::tcp::socket socket(io);
+            boost::asio::ip::tcp::resolver resolver(io);
+            auto ep = resolver.resolve("127.0.0.1", "5001");
+            boost::asio::async_connect(
+                socket, ep,
+                [](const boost::system::error_code& error,
+                   const boost::asio::ip::tcp::endpoint&) {});
+#endif
 
             /* TODO: wait for ready */
             usleep(1 * 1000 * 1000);
 
             /* add new node */
-            add_node(socket, "127.0.0.1:6000,127.0.0.1:5555");
+            co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
 
+#if 0
             /* TODO: wait for ready */
             usleep(1 * 1000 * 1000);
 
@@ -319,6 +310,7 @@ int main() {
                     assert(s == to_string(i));
                 }
             }
+#endif
 
             exit(0);
             while (true) {
