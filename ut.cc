@@ -194,6 +194,30 @@ int main() {
                 co_return {};
             };
 
+            auto read =
+                [](boost::asio::ip::tcp::socket& socket,
+                   const string& key) -> boost::cobalt::task<std::string> {
+                try {
+
+                    std::string tx = "r:" + key;
+                    co_await boost::asio::async_write(
+                        socket, boost::asio::buffer(tx, tx.size()),
+                        boost::cobalt::use_task);
+
+                    char rx[1024] = {};
+                    std::size_t n = co_await socket.async_read_some(
+                        boost::asio::buffer(rx), boost::cobalt::use_task);
+
+                    string rxs(rx);
+                    co_return rxs.substr(rxs.find(":") + 1);
+
+                } catch (boost::system::system_error const& e) {
+                    co_return "";
+                }
+
+                co_return "";
+            };
+
             constexpr int COUNT = 1024;
 
             auto io = co_await boost::cobalt::this_coro::executor;
