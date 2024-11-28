@@ -306,20 +306,10 @@ int main() {
             co_await remove_node(socket, "127.0.0.1:6000");
 
             {
-                boost::asio::ip::tcp::resolver resolver(io);
-                boost::asio::ip::tcp::socket socket(io);
-                auto ep = resolver.resolve("127.0.0.1", "5555");
 
                 for (auto i = 0; i < COUNT; ++i) {
 
-                    boost::asio::async_connect(
-                        socket, ep,
-                        [&socket,
-                         &err_code](const boost::system::error_code& error,
-                                    const boost::asio::ip::tcp::endpoint&) {
-                            err_code = error;
-                            // std::cout << "error = " << error << std::endl;
-                        });
+                    auto socket = co_await async_connect("127.0.0.1", "5555");
 
                     std::string tx = "r:";
                     tx += "k" + to_string(i);
