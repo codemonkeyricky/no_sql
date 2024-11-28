@@ -311,19 +311,21 @@ int main() {
 
                     auto socket = co_await async_connect("127.0.0.1", "5555");
 
-                    std::string tx = "r:";
-                    tx += "k" + to_string(i);
-                    co_await boost::asio::async_write(
-                        socket, boost::asio::buffer(tx, tx.size()),
-                        boost::cobalt::use_task);
+                    auto s = co_await read(socket, "k" + to_string(i));
 
-                    char rx[1024] = {};
-                    std::size_t n = co_await socket.async_read_some(
-                        boost::asio::buffer(rx), boost::cobalt::use_task);
+                    // std::string tx = "r:";
+                    // tx += "k" + to_string(i);
+                    // co_await boost::asio::async_write(
+                    //     socket, boost::asio::buffer(tx, tx.size()),
+                    //     boost::cobalt::use_task);
 
-                    string rxs(rx);
-                    auto p = rxs.find(":");
-                    auto s = rxs.substr(p + 1);
+                    // char rx[1024] = {};
+                    // std::size_t n = co_await socket.async_read_some(
+                    //     boost::asio::buffer(rx), boost::cobalt::use_task);
+
+                    // string rxs(rx);
+                    // auto p = rxs.find(":");
+                    // auto s = rxs.substr(p + 1);
                     assert(s == to_string(i));
 
                     volatile int dummy = 0;
