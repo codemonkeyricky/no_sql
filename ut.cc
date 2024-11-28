@@ -177,10 +177,6 @@ int main() {
                                   const string& node)
                 -> boost::cobalt::task<boost::system::error_code> {
                 try {
-                    auto io = co_await boost::cobalt::this_coro::executor;
-                    boost::asio::ip::tcp::resolver resolver(io);
-                    boost::asio::ip::tcp::socket socket(io);
-                    // auto ep = resolver.resolve(cc_addr, cc_port);
 
                     string tx = "remove_node:" + node;
                     co_await boost::asio::async_write(
@@ -238,6 +234,9 @@ int main() {
             usleep(1 * 1000 * 1000);
 
             {
+
+                auto node = co_await async_connect("127.0.0.1", "5555");
+
                 boost::asio::ip::tcp::resolver resolver(io);
                 boost::asio::ip::tcp::socket socket(io);
                 auto ep = resolver.resolve("127.0.0.1", "5555");
