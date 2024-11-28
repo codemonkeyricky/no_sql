@@ -173,7 +173,7 @@ int main() {
                     boost::asio::buffer(rx_payload), boost::cobalt::use_task);
             };
 
-            auto remove_node = [](const string& cc_addr, const string& cc_port,
+            auto remove_node = [](boost::asio::ip::tcp::socket& socket,
                                   const string& node)
                 -> boost::cobalt::task<boost::system::error_code> {
                 try {
@@ -316,7 +316,7 @@ int main() {
 
             if (1) {
 
-                co_await remove_node("127.0.0.1", "5001", "127.0.0.1:6000");
+                co_await remove_node(socket, "127.0.0.1:6000");
 
                 // string tx_payload = "remove_node:";
                 // co_await boost::asio::async_write(
