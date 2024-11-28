@@ -297,17 +297,17 @@ int main() {
                 }
             }
 
-#if 0
-            co_await remove_node(socket, "127.0.0.1:6000");
+            co_await remove_node(*ctrl, "127.0.0.1:6000");
+            usleep(1500 * 1000);
 
-            {
-                auto socket = co_await async_connect("127.0.0.1", "5555");
-                for (auto i = 0; i < COUNT; ++i) {
-                    auto s = co_await read(socket, "k" + to_string(i));
-                    assert(s == to_string(i));
-                }
+            auto node = unique_ptr<boost::asio::ip::tcp::socket>(
+                new boost::asio::ip::tcp::socket(io));
+            co_await async_connect(node, "127.0.0.1", "5555");
+
+            for (auto i = 0; i < COUNT; ++i) {
+                auto s = co_await read(*node, "k" + to_string(i));
+                assert(s == to_string(i));
             }
-#endif
 
             exit(0);
             while (true) {
