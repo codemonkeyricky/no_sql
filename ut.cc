@@ -232,24 +232,10 @@ int main() {
             usleep(1 * 1000 * 1000);
 
             /* add new node */
-            if (1) {
+            add_node(socket, "127.0.0.1:6000,127.0.0.1:5555");
 
-                add_node(socket, "127.0.0.1:6000,127.0.0.1:5555");
-
-                // std::string tx_payload =
-                //     "add_node:127.0.0.1:6000,127.0.0.1:5555";
-                // co_await boost::asio::async_write(
-                //     socket, boost::asio::buffer(tx_payload,
-                //     tx_payload.size()), boost::cobalt::use_task);
-
-                // char rx_payload[1024] = {};
-                // std::size_t n = co_await socket.async_read_some(
-                //     boost::asio::buffer(rx_payload),
-                //     boost::cobalt::use_task);
-
-                /* TODO: wait for ready */
-                usleep(1 * 1000 * 1000);
-            }
+            /* TODO: wait for ready */
+            usleep(1 * 1000 * 1000);
 
             {
                 boost::asio::ip::tcp::resolver resolver(io);
@@ -314,22 +300,7 @@ int main() {
                 }
             }
 
-            if (1) {
-
-                co_await remove_node(socket, "127.0.0.1:6000");
-
-                // string tx_payload = "remove_node:";
-                // co_await boost::asio::async_write(
-                //     socket, boost::asio::buffer(tx_payload,
-                //     tx_payload.size()), boost::cobalt::use_task);
-
-                // char rx_payload[1024] = {};
-                // auto n = co_await socket.async_read_some(
-                //     boost::asio::buffer(rx_payload),
-                //     boost::cobalt::use_task);
-
-                volatile int dummy = 0;
-            }
+            co_await remove_node(socket, "127.0.0.1:6000");
 
             {
                 boost::asio::ip::tcp::resolver resolver(io);
