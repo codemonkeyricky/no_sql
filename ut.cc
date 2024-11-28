@@ -145,12 +145,12 @@ int main() {
     boost::cobalt::spawn(
         io,
         []() -> boost::cobalt::task<void> {
-            auto async_connect =
-                [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
-                   const string& addr,
-                   const string& port) -> boost::cobalt::task<void> {
+            auto async_connect = [](const string& addr, const string& port)
+                -> boost::cobalt::task<
+                    unique_ptr<boost::asio::ip::tcp::socket>> {
                 auto io = co_await boost::cobalt::this_coro::executor;
-                // static boost::asio::ip::tcp::socket socket(io);
+                auto socket = unique_ptr<boost::asio::ip::tcp::socket>(
+                    new boost::asio::ip::tcp::socket(io));
                 boost::asio::ip::tcp::resolver resolver(io);
                 auto ep = resolver.resolve(addr, port);
 
@@ -158,6 +158,8 @@ int main() {
                     *socket, ep,
                     [](const boost::system::error_code& error,
                        const boost::asio::ip::tcp::endpoint&) {});
+
+                co_return move(socket);
             };
 
             auto add_node =
@@ -244,12 +246,7 @@ int main() {
             constexpr int COUNT = 1024;
 
 #if 1
-            auto io = co_await boost::cobalt::this_coro::executor;
-            // unique_ptr<boost::asio::ip::tcp::socket> ctrl(io);
-
-            auto ctrl = unique_ptr<boost::asio::ip::tcp::socket>(
-                new boost::asio::ip::tcp::socket(io));
-            co_await async_connect(ctrl, "127.0.0.1", "5001");
+            auto ctrl = co_await async_connect("127.0.0.1", "5001");
 #else
             auto io = co_await boost::cobalt::this_coro::executor;
             boost::asio::ip::tcp::socket socket(io);
@@ -271,21 +268,10 @@ int main() {
             usleep(1 * 1000 * 1000);
 
             {
-                auto node = unique_ptr<boost::asio::ip::tcp::socket>(
-                    new boost::asio::ip::tcp::socket(io));
-
-                co_await async_connect(node, "127.0.0.1", "5555");
+                auto node = co_await async_connect("127.0.0.1", "5555");
 
                 /* write */
                 for (auto i = 0; i < COUNT; ++i) {
-                    // boost::asio::async_connect(
-                    //     socket, ep,
-                    //     [&socket,
-                    //      &err_code](const boost::system::error_code& error,
-                    //                 const boost::asio::ip::tcp::endpoint&) {
-                    //         err_code = error;
-                    //         // std::cout << "error = " << error << std::endl;
-                    //     });
 
                     co_await write(*node, "k" + to_string(i), to_string(i));
                 }
@@ -300,9 +286,7 @@ int main() {
             co_await remove_node(*ctrl, "127.0.0.1:6000");
             usleep(1500 * 1000);
 
-            auto node = unique_ptr<boost::asio::ip::tcp::socket>(
-                new boost::asio::ip::tcp::socket(io));
-            co_await async_connect(node, "127.0.0.1", "5555");
+            auto node = co_await async_connect("127.0.0.1", "5555");
 
             for (auto i = 0; i < COUNT; ++i) {
                 auto s = co_await read(*node, "k" + to_string(i));
