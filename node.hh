@@ -477,6 +477,10 @@ class Node final {
             /* parse */
             auto [token, timestamp, id] = *it;
             if (id == this->id) {
+                std::cout << "read (local) " << key << std::endl;
+                if (key == "k3") {
+                    volatile int dummy = 0;
+                }
                 /* local */
                 ++stats.read;
                 if (db.count(key_hash)) {
@@ -485,6 +489,7 @@ class Node final {
                 }
                 co_return "";
             } else {
+                std::cout << "read (remote) " << key << std::endl;
                 /* forward to remote if alive */
                 ++stats.read_fwd;
 
@@ -548,15 +553,12 @@ class Node final {
     boost::cobalt::task<void> write(const std::string& key,
                                     const std::string& value,
                                     bool coordinator = true) {
-        // std::cout << "write(): " << key << "=" << value << ", " <<
-        // coordinator
-        //           << std::endl;
 
         auto key_hash =
             static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
 
         if (!coordinator) {
-            /* not coordinator mode - commit the write directly */
+            /* force write */
             ++stats.write;
             db[key_hash] = {key, value};
             co_return;
@@ -571,33 +573,25 @@ class Node final {
             if (it == lookup.end())
                 it = lookup.begin();
             ids.push_back((*it)[2]);
+            ++it;
         }
 
         /* walk the ring until we find a working node */
         for (auto id : ids) {
 
-            /* parse */
+            // std::cout << "write(): " << self << " -> " << nodehash_lookup[id]
+            //           << ": " << key << std::endl;
+
             if (id == this->id) {
-                /* local */
                 ++stats.write;
                 db[key_hash] = {key, value};
             } else {
-                /* forward to remote if alive */
-
-                co_await write_remote(nodehash_lookup[id], key, value);
-
-                // assert(copy == lookup);
-
                 ++stats.write_fwd;
+                co_await write_remote(nodehash_lookup[id], key, value);
             }
-
-            if (--rf <= 0)
-                co_return;
-
-            ++it;
         }
 
-        assert(0);
+        co_return;
 
         /* not local - forward request */
     }

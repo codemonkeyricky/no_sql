@@ -116,7 +116,7 @@ int main() {
 
             string addr_port = addr + ":" + to_string(port++);
             auto& n = cluster->nodes[addr_port] =
-                std::unique_ptr<Node>(new Node(addr_port, seed, 1));
+                std::unique_ptr<Node>(new Node(addr_port, seed));
             if (seed == "") {
                 seed = addr_port;
             }
@@ -211,9 +211,11 @@ int main() {
                         boost::asio::buffer(rx), boost::cobalt::use_task);
 
                     string rxs(rx);
+                    cout << "read received: " << rxs << endl;
                     co_return rxs.substr(rxs.find(":") + 1);
 
                 } catch (boost::system::system_error const& e) {
+                    cout << "read error: " << e.what() << endl;
                     co_return "";
                 }
 
