@@ -300,19 +300,7 @@ int main() {
                             // std::cout << "error = " << error << std::endl;
                         });
 
-                    std::string tx = "w:";
-                    tx += "k" + to_string(i) + "=" + to_string(i);
-                    co_await boost::asio::async_write(
-                        socket, boost::asio::buffer(tx, tx.size()),
-                        boost::cobalt::use_task);
-
-                    cout << "### writing: " << tx << endl;
-
-                    char rx[1024] = {};
-                    std::size_t n = co_await socket.async_read_some(
-                        boost::asio::buffer(rx), boost::cobalt::use_task);
-
-                    cout << "### write ack: " << endl;
+                    co_await write(socket, "k" + to_string(i), to_string(i));
                 }
 
                 /* read-back */
