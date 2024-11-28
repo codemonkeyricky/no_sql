@@ -294,12 +294,8 @@ int main() {
 
                 /* read-back */
                 for (auto i = 0; i < COUNT; ++i) {
-
                     auto s = co_await read(socket, "k" + to_string(i));
-
                     assert(s == to_string(i));
-
-                    volatile int dummy = 0;
                 }
             }
 
