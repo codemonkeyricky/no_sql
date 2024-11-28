@@ -295,28 +295,8 @@ int main() {
                 /* read-back */
                 for (auto i = 0; i < COUNT; ++i) {
 
-                    boost::asio::async_connect(
-                        socket, ep,
-                        [&socket,
-                         &err_code](const boost::system::error_code& error,
-                                    const boost::asio::ip::tcp::endpoint&) {
-                            err_code = error;
-                            // std::cout << "error = " << error << std::endl;
-                        });
+                    auto s = co_await read(socket, "k" + to_string(i));
 
-                    std::string tx = "r:";
-                    tx += "k" + to_string(i);
-                    co_await boost::asio::async_write(
-                        socket, boost::asio::buffer(tx, tx.size()),
-                        boost::cobalt::use_task);
-
-                    char rx[1024] = {};
-                    std::size_t n = co_await socket.async_read_some(
-                        boost::asio::buffer(rx), boost::cobalt::use_task);
-
-                    string rxs(rx);
-                    auto p = rxs.find(":");
-                    auto s = rxs.substr(p + 1);
                     assert(s == to_string(i));
 
                     volatile int dummy = 0;
