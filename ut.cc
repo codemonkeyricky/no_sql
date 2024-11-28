@@ -306,29 +306,10 @@ int main() {
             co_await remove_node(socket, "127.0.0.1:6000");
 
             {
-
+                auto socket = co_await async_connect("127.0.0.1", "5555");
                 for (auto i = 0; i < COUNT; ++i) {
-
-                    auto socket = co_await async_connect("127.0.0.1", "5555");
-
                     auto s = co_await read(socket, "k" + to_string(i));
-
-                    // std::string tx = "r:";
-                    // tx += "k" + to_string(i);
-                    // co_await boost::asio::async_write(
-                    //     socket, boost::asio::buffer(tx, tx.size()),
-                    //     boost::cobalt::use_task);
-
-                    // char rx[1024] = {};
-                    // std::size_t n = co_await socket.async_read_some(
-                    //     boost::asio::buffer(rx), boost::cobalt::use_task);
-
-                    // string rxs(rx);
-                    // auto p = rxs.find(":");
-                    // auto s = rxs.substr(p + 1);
                     assert(s == to_string(i));
-
-                    volatile int dummy = 0;
                 }
             }
 
