@@ -247,48 +247,39 @@ int main() {
 
             constexpr int COUNT = 1024;
 
-#if 1
             auto ctrl = co_await async_connect("127.0.0.1", "5001");
-#else
-            auto io = co_await boost::cobalt::this_coro::executor;
-            boost::asio::ip::tcp::socket socket(io);
-            boost::asio::ip::tcp::resolver resolver(io);
-            auto ep = resolver.resolve("127.0.0.1", "5001");
-            boost::asio::async_connect(
-                socket, ep,
-                [](const boost::system::error_code& error,
-                   const boost::asio::ip::tcp::endpoint&) {});
-#endif
 
             /* TODO: wait for ready */
-            usleep(1 * 1000 * 1000);
+            usleep(500 * 1000);
 
-            /* add new node */
+            /*
+             * add node
+             */
             co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
 
-            /* TODO: wait for ready */
-            usleep(1 * 1000 * 1000);
+            usleep(500 * 1000);
 
-            {
-                auto node = co_await async_connect("127.0.0.1", "5555");
+            auto node = co_await async_connect("127.0.0.1", "5555");
 
-                /* write */
-                for (auto i = 0; i < COUNT; ++i) {
-
-                    co_await write(*node, "k" + to_string(i), to_string(i));
-                }
-
-                /* read-back */
-                for (auto i = 0; i < COUNT; ++i) {
-                    auto s = co_await read(*node, "k" + to_string(i));
-                    assert(s == to_string(i));
-                }
+            /* write */
+            for (auto i = 0; i < COUNT; ++i) {
+                co_await write(*node, "k" + to_string(i), to_string(i));
             }
+
+            /* read-back */
+            for (auto i = 0; i < COUNT; ++i) {
+                auto s = co_await read(*node, "k" + to_string(i));
+                assert(s == to_string(i));
+            }
+
+            /*
+             * remove node
+             */
 
             co_await remove_node(*ctrl, "127.0.0.1:6000");
             usleep(1500 * 1000);
 
-            auto node = co_await async_connect("127.0.0.1", "5555");
+            // node = co_await async_connect("127.0.0.1", "5555");
 
             for (auto i = 0; i < COUNT; ++i) {
                 auto s = co_await read(*node, "k" + to_string(i));
@@ -296,9 +287,6 @@ int main() {
             }
 
             exit(0);
-            while (true) {
-                usleep(500 * 1000);
-            }
         }(),
         boost::asio::detached);
 
