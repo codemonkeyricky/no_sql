@@ -267,40 +267,37 @@ int main() {
             /* add new node */
             co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
 
-#if 0
             /* TODO: wait for ready */
             usleep(1 * 1000 * 1000);
 
             {
+                auto node = unique_ptr<boost::asio::ip::tcp::socket>(
+                    new boost::asio::ip::tcp::socket(io));
 
-                auto node = co_await async_connect("127.0.0.1", "5555");
+                co_await async_connect(node, "127.0.0.1", "5555");
 
-                boost::asio::ip::tcp::resolver resolver(io);
-                boost::asio::ip::tcp::socket socket(io);
-                auto ep = resolver.resolve("127.0.0.1", "5555");
-
-                boost::system::error_code err_code;
                 /* write */
                 for (auto i = 0; i < COUNT; ++i) {
-                    boost::asio::async_connect(
-                        socket, ep,
-                        [&socket,
-                         &err_code](const boost::system::error_code& error,
-                                    const boost::asio::ip::tcp::endpoint&) {
-                            err_code = error;
-                            // std::cout << "error = " << error << std::endl;
-                        });
+                    // boost::asio::async_connect(
+                    //     socket, ep,
+                    //     [&socket,
+                    //      &err_code](const boost::system::error_code& error,
+                    //                 const boost::asio::ip::tcp::endpoint&) {
+                    //         err_code = error;
+                    //         // std::cout << "error = " << error << std::endl;
+                    //     });
 
-                    co_await write(socket, "k" + to_string(i), to_string(i));
+                    co_await write(*node, "k" + to_string(i), to_string(i));
                 }
 
                 /* read-back */
                 for (auto i = 0; i < COUNT; ++i) {
-                    auto s = co_await read(socket, "k" + to_string(i));
+                    auto s = co_await read(*node, "k" + to_string(i));
                     assert(s == to_string(i));
                 }
             }
 
+#if 0
             co_await remove_node(socket, "127.0.0.1:6000");
 
             {
