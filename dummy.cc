@@ -23,20 +23,24 @@ using namespace std;
 
 int main() {
 
-    auto coro1 = []() -> boost::cobalt::task<void> { co_return; };
-    auto coro2 = [&]() -> boost::cobalt::task<void> { co_await coro1(); };
+    // auto coro = []() -> boost::cobalt::task<int> {
+    //     int a = 3;
+    //     co_return a;
+    // };
 
     boost::asio::io_context io(1);
 
-    /* case 1 */
-    // boost::cobalt::spawn(io, coro2(), boost::asio::detached);
+    int var = 0xdeadbeef;
+    cout << "var address = " << &var << endl;
+
+    auto coro = [&]() -> boost::cobalt::task<void> {
+        cout << "coro var address = " << &var << endl;
+        auto a = var;
+        co_return;
+    };
 
     /* case 2 */
-    boost::cobalt::spawn(
-        io, [coro1]() -> boost::cobalt::task<void> { co_await coro1(); }(),
-        boost::asio::detached);
+    boost::cobalt::spawn(io, coro(), boost::asio::detached);
 
     io.run();
-
-    volatile int dummy = 0;
 }
