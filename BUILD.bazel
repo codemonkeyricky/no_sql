@@ -43,18 +43,18 @@ cc_test(
     },
 )
 
-# cc_binary(
-#     name = "fuse", 
-#     srcs = [
-#         "fuse.c",
-#     ], 
-#     copts = [
-#         "-D_FILE_OFFSET_BITS=64",
-#     ],
-#     linkopts = [
-#         "-lfuse",
-#     ],
-# )
+cc_binary(
+    name = "fuse", 
+    srcs = [
+        "fuse.c",
+    ], 
+    copts = [
+        "-D_FILE_OFFSET_BITS=64",
+    ],
+    linkopts = [
+        "-lfuse",
+    ],
+)
 
 # cc_binary(
 #     name = "echo", 

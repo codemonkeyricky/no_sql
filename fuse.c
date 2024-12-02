@@ -32,16 +32,17 @@ static int do_getattr(const char* path, struct stat* st) {
     //		st_gid: 	The group ID of the file.
     //		st_atime: 	This is the last access time for the file.
     //		st_mtime: 	This is the time of the last modification to the
-    //contents of the file. 		st_mode: 	Specifies the mode of the file. This
-    //includes file type information (see Testing File Type) and the file
-    //permission bits (see Permission Bits). 		st_nlink: 	The number of hard links
-    //to the file. This count keeps track of how many directories have entries
-    //for this file. If the count is ever decremented to zero, then the file
-    //itself is discarded as soon 						as no process still holds it open. Symbolic
-    //links are not counted in the total. 		st_size:	This specifies the size
-    //of a regular file in bytes. For files that are really devices this field
-    //isn’t usually meaningful. For symbolic links this specifies the length of
-    //the file name the link refers to.
+    // contents of the file. 		st_mode: 	Specifies the mode of
+    // the file. This includes file type information (see Testing File Type) and
+    // the file permission bits (see Permission Bits). 		st_nlink:
+    // The number of hard links to the file. This count keeps track of how many
+    // directories have entries for this file. If the count is ever decremented
+    // to zero, then the file itself is discarded as soon
+    // as no process still holds it open. Symbolic links are not counted in the
+    // total. 		st_size:	This specifies the size of a regular
+    // file in bytes. For files that are really devices this field isn’t usually
+    // meaningful. For symbolic links this specifies the length of the file name
+    // the link refers to.
 
     st->st_uid = getuid(); // The owner of the file/directory is the user who
                            // mounted the filesystem
@@ -114,5 +115,6 @@ static struct fuse_operations operations = {
 };
 
 int main(int argc, char* argv[]) {
+    // gdb -tui  --args bazel-bin/fuse mnt/ -f
     return fuse_main(argc, argv, &operations, NULL);
 }

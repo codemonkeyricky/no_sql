@@ -277,9 +277,17 @@ int main() {
              */
 
             co_await remove_node(*ctrl, "127.0.0.1:6000");
-            usleep(1500 * 1000);
+            usleep(1000 * 1000);
 
             // node = co_await async_connect("127.0.0.1", "5555");
+
+            for (auto i = 0; i < COUNT; ++i) {
+                auto s = co_await read(*node, "k" + to_string(i));
+                assert(s == to_string(i));
+            }
+
+            co_await add_node(ctrl, "127.0.0.1:6001,127.0.0.1:5555");
+            usleep(1000 * 1000);
 
             for (auto i = 0; i < COUNT; ++i) {
                 auto s = co_await read(*node, "k" + to_string(i));
