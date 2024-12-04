@@ -28,8 +28,8 @@ using namespace std;
 static shared_ptr<Cluster> cluster;
 
 static int port = 6000;
-boost::cobalt::task<void> cp_process(shared_ptr<Cluster> cluster,
-                                     boost::asio::ip::tcp::socket socket) {
+boost::cobalt::task<void> cluster_process(shared_ptr<Cluster> cluster,
+                                          boost::asio::ip::tcp::socket socket) {
     auto executor = co_await boost::cobalt::this_coro::executor;
     for (;;) {
 
@@ -92,7 +92,8 @@ boost::cobalt::task<void> system_listener(shared_ptr<Cluster> cluster) {
                                             {boost::asio::ip::tcp::v4(), 5001});
     for (;;) {
         auto socket = co_await acceptor.async_accept(boost::cobalt::use_task);
-        boost::cobalt::spawn(executor, cp_process(cluster, std::move(socket)),
+        boost::cobalt::spawn(executor,
+                             cluster_process(cluster, std::move(socket)),
                              boost::asio::detached);
     }
 
@@ -197,18 +198,18 @@ int main() {
                 co_return {};
             };
 
-            auto read =
-                [](boost::asio::ip::tcp::socket& socket,
+            auto async_read =
+                [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
                    const string& key) -> boost::cobalt::task<std::string> {
                 try {
 
                     std::string tx = "r:" + key;
                     co_await boost::asio::async_write(
-                        socket, boost::asio::buffer(tx, tx.size()),
+                        *socket, boost::asio::buffer(tx, tx.size()),
                         boost::cobalt::use_task);
 
                     char rx[1024] = {};
-                    std::size_t n = co_await socket.async_read_some(
+                    std::size_t n = co_await socket->async_read_some(
                         boost::asio::buffer(rx), boost::cobalt::use_task);
 
                     string rxs(rx);
@@ -269,7 +270,7 @@ int main() {
 
             /* read-back */
             for (auto i = 0; i < COUNT; ++i) {
-                auto s = co_await read(*node, "k" + to_string(i));
+                auto s = co_await async_read(node, "k" + to_string(i));
                 assert(s == to_string(i));
             }
 
@@ -283,7 +284,7 @@ int main() {
             // node = co_await async_connect("127.0.0.1", "5555");
 
             for (auto i = 0; i < COUNT; ++i) {
-                auto s = co_await read(*node, "k" + to_string(i));
+                auto s = co_await async_read(node, "k" + to_string(i));
                 assert(s == to_string(i));
             }
 
@@ -306,7 +307,7 @@ int main() {
             usleep(5000 * 1000);
 
             for (auto i = 0; i < COUNT; ++i) {
-                auto s = co_await read(*node, "k" + to_string(i));
+                auto s = co_await async_read(node, "k" + to_string(i));
                 assert(s == to_string(i));
             }
 
