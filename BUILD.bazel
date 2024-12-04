@@ -23,6 +23,25 @@
 # )
 
 cc_test(
+    name = "file_ut", 
+    srcs = [
+        "file_ut.cc",
+        "file.hh",
+    ], 
+    copts = [
+        "-std=c++20",
+    ],
+    linkopts = [
+        "-lboost_serialization",
+        "-lboost_cobalt",
+        "-L/usr/local/lib",
+    ],
+    env = {
+        "LD_LIBRARY_PATH": "/usr/local/lib",
+    },
+)
+
+cc_test(
     name = "remote", 
     srcs = [
         "ut.cc",

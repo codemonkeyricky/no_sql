@@ -175,18 +175,19 @@ int main() {
                     boost::asio::buffer(rx_payload), boost::cobalt::use_task);
             };
 
-            auto remove_node = [](boost::asio::ip::tcp::socket& socket,
-                                  const string& node)
+            auto remove_node =
+                [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
+                   const string& node)
                 -> boost::cobalt::task<boost::system::error_code> {
                 try {
 
                     string tx = "remove_node:" + node;
                     co_await boost::asio::async_write(
-                        socket, boost::asio::buffer(tx, tx.size()),
+                        *socket, boost::asio::buffer(tx, tx.size()),
                         boost::cobalt::use_task);
 
                     char rx_payload[1024] = {};
-                    auto n = co_await socket.async_read_some(
+                    auto n = co_await socket->async_read_some(
                         boost::asio::buffer(rx_payload),
                         boost::cobalt::use_task);
                 } catch (boost::system::system_error const& e) {
@@ -245,7 +246,7 @@ int main() {
                 co_return;
             };
 
-            constexpr int COUNT = 1024;
+            constexpr int COUNT = 32;
 
             auto ctrl = co_await async_connect("127.0.0.1", "5001");
 
@@ -276,7 +277,7 @@ int main() {
              * remove node
              */
 
-            co_await remove_node(*ctrl, "127.0.0.1:6000");
+            co_await remove_node(ctrl, "127.0.0.1:6000");
             usleep(1000 * 1000);
 
             // node = co_await async_connect("127.0.0.1", "5555");
@@ -286,13 +287,31 @@ int main() {
                 assert(s == to_string(i));
             }
 
+            co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
+            usleep(1000 * 1000);
+
             co_await add_node(ctrl, "127.0.0.1:6001,127.0.0.1:5555");
             usleep(1000 * 1000);
+
+            co_await add_node(ctrl, "127.0.0.1:6002,127.0.0.1:5555");
+            usleep(1000 * 1000);
+
+            // co_await add_node(ctrl, "127.0.0.1:6003,127.0.0.1:5555");
+            // usleep(1000 * 1000);
+
+            // co_await add_node(ctrl, "127.0.0.1:6004,127.0.0.1:5555");
+            // usleep(1000 * 1000);
+
+            cout << "waiting before read...  " << endl;
+            usleep(5000 * 1000);
 
             for (auto i = 0; i < COUNT; ++i) {
                 auto s = co_await read(*node, "k" + to_string(i));
                 assert(s == to_string(i));
             }
+
+            cout << "wait for tear down...  " << endl;
+            usleep(10000 * 1000);
 
             exit(0);
         }(),

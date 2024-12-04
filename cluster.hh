@@ -89,6 +89,8 @@ struct Cluster {
                 }
             }
 
+            // std::cout << "heartbeat!" << std::endl;
+
             /* heartbeat every second */
             timer.expires_at(std::chrono::steady_clock::now() +
                              std::chrono::milliseconds(100));
