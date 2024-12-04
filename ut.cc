@@ -176,6 +176,22 @@ int main() {
                     boost::asio::buffer(rx_payload), boost::cobalt::use_task);
             };
 
+            auto cluster_ready =
+                [](unique_ptr<boost::asio::ip::tcp::socket>& socket)
+                -> boost::cobalt::task<bool> {
+                std::string tx_payload = "ready:";
+                co_await boost::asio::async_write(
+                    *socket, boost::asio::buffer(tx_payload, tx_payload.size()),
+                    boost::cobalt::use_task);
+
+                char rx_payload[1024] = {};
+                std::size_t n = co_await socket->async_read_some(
+                    boost::asio::buffer(rx_payload), boost::cobalt::use_task);
+
+                string rxs(rx_payload);
+                co_return rxs == "ready_ack:ready";
+            };
+
             auto remove_node =
                 [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
                    const string& node)
@@ -251,9 +267,9 @@ int main() {
             constexpr int COUNT = 32;
 
             auto ctrl = co_await async_connect("127.0.0.1", "5001");
-
-            /* TODO: wait for ready */
-            usleep(500 * 1000);
+            while (!(co_await cluster_ready(ctrl))) {
+                usleep(100 * 1000);
+            }
 
             /*
              * add node
