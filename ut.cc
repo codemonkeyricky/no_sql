@@ -224,18 +224,19 @@ int main() {
                 co_return "";
             };
 
-            auto write = [](boost::asio::ip::tcp::socket& socket,
-                            const string& key,
-                            const string& value) -> boost::cobalt::task<void> {
+            auto async_write =
+                [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
+                   const string& key,
+                   const string& value) -> boost::cobalt::task<void> {
                 try {
 
                     std::string tx = "w:" + key + "=" + value;
                     co_await boost::asio::async_write(
-                        socket, boost::asio::buffer(tx, tx.size()),
+                        *socket, boost::asio::buffer(tx, tx.size()),
                         boost::cobalt::use_task);
 
                     char rx[1024] = {};
-                    std::size_t n = co_await socket.async_read_some(
+                    std::size_t n = co_await socket->async_read_some(
                         boost::asio::buffer(rx), boost::cobalt::use_task);
 
                     co_return;
@@ -265,7 +266,7 @@ int main() {
 
             /* write */
             for (auto i = 0; i < COUNT; ++i) {
-                co_await write(*node, "k" + to_string(i), to_string(i));
+                co_await async_write(node, "k" + to_string(i), to_string(i));
             }
 
             /* read-back */
