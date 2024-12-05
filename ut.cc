@@ -58,6 +58,7 @@ boost::cobalt::task<void> cluster_process(shared_ptr<Cluster> cluster,
             auto to_remove = payload.substr(p + 1);
 
             cluster->to_be_removed.push(to_remove);
+            cluster->ready = false;
 
             // auto& target = (*nodes.begin()).second->cancel_signal;
             // target.emit(boost::asio::cancellation_type::all);
@@ -275,8 +276,9 @@ int main() {
              * add node
              */
             co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
-
-            usleep(500 * 1000);
+            while (!(co_await cluster_ready(ctrl))) {
+                usleep(100 * 1000);
+            }
 
             auto node = co_await async_connect("127.0.0.1", "5555");
 
@@ -296,7 +298,9 @@ int main() {
              */
 
             co_await remove_node(ctrl, "127.0.0.1:6000");
-            usleep(1000 * 1000);
+            while (!(co_await cluster_ready(ctrl))) {
+                usleep(100 * 1000);
+            }
 
             // node = co_await async_connect("127.0.0.1", "5555");
 
