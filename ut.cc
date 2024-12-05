@@ -194,7 +194,8 @@ int main() {
             };
 
             auto wait_for_cluster_ready =
-                [&cluster_ready](unique_ptr<boost::asio::ip::tcp::socket>& socket)
+                [&cluster_ready](
+                    unique_ptr<boost::asio::ip::tcp::socket>& socket)
                 -> boost::cobalt::task<void> {
                 auto io = co_await boost::cobalt::this_coro::executor;
                 boost::asio::steady_timer timer(io);
@@ -285,17 +286,13 @@ int main() {
             constexpr int COUNT = 32;
 
             auto ctrl = co_await async_connect("127.0.0.1", "5001");
-            while (!(co_await cluster_ready(ctrl))) {
-                usleep(100 * 1000);
-            }
+            co_await wait_for_cluster_ready(ctrl);
 
             /*
              * add node
              */
             co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
-            while (!(co_await cluster_ready(ctrl))) {
-                usleep(100 * 1000);
-            }
+            co_await wait_for_cluster_ready(ctrl);
 
             auto node = co_await async_connect("127.0.0.1", "5555");
 
