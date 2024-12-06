@@ -423,8 +423,8 @@ class Node final {
         }
     }
 
-    boost::cobalt::task<std::string> read_remote(std::string& peer,
-                                                 std::string& key) {
+    boost::cobalt::task<std::pair<boost::system::error_code, std::string>>
+    read_remote(std::string& peer, std::string& key) {
 
         std::cout << self << ":" << "read_remote():" << peer << " - " << key
                   << std::endl;
@@ -440,25 +440,29 @@ class Node final {
 
         auto ep = resolver.resolve(addr, port);
 
-        /* Connect */
-        boost::asio::async_connect(
-            socket, ep,
-            [&socket](const boost::system::error_code& error,
-                      const boost::asio::ip::tcp::endpoint&) {});
+        try {
+            /* Connect */
+            boost::asio::async_connect(
+                socket, ep,
+                [&socket](const boost::system::error_code& error,
+                          const boost::asio::ip::tcp::endpoint&) {});
 
-        std::string req = "r:" + key;
-        co_await boost::asio::async_write(
-            socket, boost::asio::buffer(req.c_str(), req.size()),
-            boost::cobalt::use_task);
+            std::string req = "r:" + key;
+            co_await boost::asio::async_write(
+                socket, boost::asio::buffer(req.c_str(), req.size()),
+                boost::cobalt::use_task);
 
-        /* read results */
-        char payload[1024] = {};
-        std::size_t n = co_await socket.async_read_some(
-            boost::asio::buffer(payload), boost::cobalt::use_task);
+            /* read results */
+            char payload[1024] = {};
+            std::size_t n = co_await socket.async_read_some(
+                boost::asio::buffer(payload), boost::cobalt::use_task);
 
-        std::string rv(payload + 3, n - 3);
-
-        co_return rv;
+            std::string rv(payload + 3, n - 3);
+            co_return {{}, rv};
+        } catch (boost::system::system_error const& e) {
+            std::cout << "read error: " << e.what() << std::endl;
+            co_return {e.code(), ""};
+        }
     }
 
     boost::cobalt::task<std::string> read(std::string& key) {
@@ -495,7 +499,12 @@ class Node final {
                 /* forward to remote if alive */
                 ++stats.read_fwd;
 
-                co_return co_await read_remote(nodehash_lookup[id], key);
+                auto [ec, rv] = co_await read_remote(nodehash_lookup[id], key);
+                if (ec == boost::system::errc::success) {
+                    co_return rv;
+                }
+
+                volatile int dummy = 0;
             }
 
             ++it;
@@ -508,7 +517,8 @@ class Node final {
                                            const std::string& key,
                                            const std::string& value) {
 
-        // std::cout << self << ":" << "write_remote() invoked!" << std::endl;
+        // std::cout << self << ":" << "write_remote() invoked!" <<
+        // std::endl;
 
         auto io = co_await boost::asio::this_coro::executor;
 
@@ -535,7 +545,8 @@ class Node final {
                 socket, boost::asio::buffer(payload, payload.size()),
                 boost::cobalt::use_task);
 
-            // std::cout << self << ":" << "write_remote(): waiting for ack... "
+            // std::cout << self << ":" << "write_remote(): waiting for
+            // ack... "
             //           << std::endl;
 
             char rx[1024] = {};
@@ -581,7 +592,8 @@ class Node final {
         /* walk the ring until we find a working node */
         for (auto id : ids) {
 
-            // std::cout << "write(): " << self << " -> " << nodehash_lookup[id]
+            // std::cout << "write(): " << self << " -> " <<
+            // nodehash_lookup[id]
             //           << ": " << key << std::endl;
 
             if (id == this->id) {
@@ -607,7 +619,8 @@ class Node final {
     boost::cobalt::task<std::map<hash, std::pair<key, value>>>
     stream_remote(const std::string& peer, const hash i, const hash j) {
 
-        // std::cout << self << ":" << "stream_remote() invoked!" << std::endl;
+        // std::cout << self << ":" << "stream_remote() invoked!" <<
+        // std::endl;
 
         auto io = co_await boost::asio::this_coro::executor;
 
@@ -727,8 +740,8 @@ class Node final {
 
                         /*
                          * format to:
-                         * var data = {a: 9, b: 20, c:30, d:8, e:12, f:3, g:7,
-                         * h:14}
+                         * var data = {a: 9, b: 20, c:30, d:8, e:12, f:3,
+                         * g:7, h:14}
                          */
                     }
 
@@ -761,7 +774,8 @@ class Node final {
                     //     inFile.close();
 
                     //     // Find and replace the target line with the
-                    //     replacement string targetLine = "LINE_TO_REPLACE";
+                    //     replacement string targetLine =
+                    //     "LINE_TO_REPLACE";
                     //     // string replacement = "blah";
                     //     if (fileContent.find(targetLine) !=
                     //     std::string::npos) {
@@ -854,7 +868,8 @@ class Node final {
             }
             case 1:
                 running = false;
-                // std::cout << self << ":" << "node_listener() - cancelled!"
+                // std::cout << self << ":" << "node_listener() -
+                // cancelled!"
                 //           << std::endl;
                 ++marker;
                 --outstanding;
