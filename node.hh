@@ -473,15 +473,21 @@ class Node final {
         LookupEntry target = {key_hash, 0, 0};
         auto it = lookup.lower_bound(target);
 
-        /* walk the ring until we find a working node */
-        while (true) {
-
-            /* wrap around if needed */
+        std::vector<uint64_t> ids;
+        int rf = replication_factor;
+        while (rf-- > 0) {
             if (it == lookup.end())
                 it = lookup.begin();
+            ids.push_back((*it)[2]);
+            ++it;
+        }
+
+        /* walk the ring until we find a working node */
+        int k = 0;
+        while (k < ids.size()) {
 
             /* parse */
-            auto [token, timestamp, id] = *it;
+            auto id = ids[k++]; /* note id shadows this->id */
             if (id == this->id) {
                 std::cout << "read (local) " << key << std::endl;
                 if (key == "k3") {
