@@ -85,13 +85,22 @@ struct Cluster {
                 can_be_removed.pop();
             }
 
-            if (pending_add.empty() && to_be_removed.empty() &&
+            if (nodes.size() && pending_add.empty() && to_be_removed.empty() &&
                 can_be_removed.empty()) {
-                ready = true;
-                for (auto& n : nodes) {
-                    if (n.second->get_status() != "Live") {
-                        ready = false;
-                        break;
+                this->ready = true;
+
+                auto it = nodes.begin();
+                if (it->second->get_status() == "Live") {
+
+                    auto ring = it->second->get_ring_view();
+                    ++it;
+
+                    while (it != nodes.end()) {
+                        if (ring != it->second->get_ring_view()) {
+                            this->ready = false;
+                            break;
+                        }
+                        ++it;
                     }
                 }
             }
