@@ -313,13 +313,13 @@ int main() {
                 assert(s == to_string(i));
             }
 
-#if 0
             /*
              * remove node
              */
 
             co_await remove_node(ctrl, "127.0.0.1:6000");
-            co_await wait_for_cluster_ready(ctrl);
+            usleep(500 * 1000);
+            // co_await wait_for_cluster_ready(ctrl);
 
             for (auto i = 0; i < COUNT; ++i) {
                 auto retry = 3;
@@ -332,6 +332,7 @@ int main() {
 
                 assert(retry > 0);
             }
+#if 0
 
             co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
             co_await wait_for_cluster_ready(ctrl);
