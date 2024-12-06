@@ -395,6 +395,13 @@ class Node final {
 
                 for (auto& my_token : my_node.tokens) {
 
+                    /*
+                     * range to stream is from previous token to my_token
+                     * from the *next* node.
+                     */
+
+                    /* calculate range */
+
                     std::array<uint64_t, 3> target = {my_token};
                     auto it = lookup.lower_bound(target);
                     if (it == lookup.end()) {
@@ -499,7 +506,7 @@ class Node final {
                     /* exists */
                     co_return db[key_hash].second;
                 }
-                co_return "";
+                assert(0);
             } else {
                 std::cout << "read (remote) " << key << std::endl;
                 /* forward to remote if alive */
@@ -509,8 +516,6 @@ class Node final {
                 if (ec == boost::system::errc::success) {
                     co_return rv;
                 }
-
-                volatile int dummy = 0;
             }
 
             ++it;

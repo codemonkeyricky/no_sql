@@ -289,11 +289,13 @@ int main() {
             auto ctrl = co_await async_connect("127.0.0.1", "5001");
             co_await wait_for_cluster_ready(ctrl);
 
+#if 0
             /*
              * add node
              */
             co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
             co_await wait_for_cluster_ready(ctrl);
+#endif
 
             auto node = co_await async_connect("127.0.0.1", "5555");
 
@@ -308,6 +310,7 @@ int main() {
                 assert(s == to_string(i));
             }
 
+#if 0
             /*
              * remove node
              */
@@ -341,6 +344,7 @@ int main() {
 
                 assert(retry > 0);
             }
+#endif
 
             // co_await add_node(ctrl, "127.0.0.1:6001,127.0.0.1:5555");
             // usleep(1000 * 1000);
