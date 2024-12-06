@@ -154,6 +154,7 @@ class Node final {
     };
     std::shared_ptr<boost::asio::steady_timer> cancel;
     uint32_t outstanding = 0;
+    node_addr self;
 
   private:
     Partitioner& p = Partitioner::instance();
@@ -166,7 +167,6 @@ class Node final {
     Stats stats;
     HashLookup nodehash_lookup;
     int replication_factor; /* replication factor */
-    node_addr self;
 
     /* update lookup table after gossip completes */
     auto update_lookup() -> void {

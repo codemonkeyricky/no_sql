@@ -59,6 +59,7 @@ struct Cluster {
             }
 
             while (pending_add.size()) {
+                std::cout << "heartbeat(): pending_add pop" << std::endl;
                 auto [server, seed] = pending_add.front();
                 pending_add.pop();
 
@@ -87,7 +88,6 @@ struct Cluster {
 
             if (nodes.size() && pending_add.empty() && to_be_removed.empty() &&
                 can_be_removed.empty()) {
-                this->ready = true;
 
                 auto it = nodes.begin();
                 if (it->second->get_status() == "Live") {
@@ -95,12 +95,22 @@ struct Cluster {
                     auto ring = it->second->get_ring_view();
                     ++it;
 
+                    this->ready = true;
                     while (it != nodes.end()) {
                         if (ring != it->second->get_ring_view()) {
                             this->ready = false;
                             break;
                         }
                         ++it;
+                    }
+
+                    if (it == nodes.end()) {
+                        assert(this->ready);
+                        std::cout << "heartbeat(): cluster ready!" << std::endl;
+                    } else {
+                        assert(!this->ready);
+                        std::cout << "heartbeat(): cluster not ready!"
+                                  << it->second->self << std::endl;
                     }
                 }
             }

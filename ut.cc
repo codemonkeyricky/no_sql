@@ -47,6 +47,8 @@ boost::cobalt::task<void> cluster_process(shared_ptr<Cluster> cluster,
             auto addr = v.substr(0, p);
             auto seed = v.substr(p + 1);
 
+            std::cout << "cluster_process(): pending_add.push()" << std::endl;
+
             cluster->pending_add.push({addr, seed});
             cluster->ready = false;
 
@@ -289,13 +291,14 @@ int main() {
             auto ctrl = co_await async_connect("127.0.0.1", "5001");
             co_await wait_for_cluster_ready(ctrl);
 
-#if 0
             /*
              * add node
              */
             co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
-            co_await wait_for_cluster_ready(ctrl);
-#endif
+
+            usleep(500 * 1000);
+            /* TODO: this API is not yet reliable */
+            // co_await wait_for_cluster_ready(ctrl);
 
             auto node = co_await async_connect("127.0.0.1", "5555");
 
