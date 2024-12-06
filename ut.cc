@@ -48,6 +48,7 @@ boost::cobalt::task<void> cluster_process(shared_ptr<Cluster> cluster,
             auto seed = v.substr(p + 1);
 
             cluster->pending_add.push({addr, seed});
+            cluster->ready = false;
 
             auto resp = "add_node_ack:" + addr;
             co_await boost::asio::async_write(
@@ -312,19 +313,34 @@ int main() {
              */
 
             co_await remove_node(ctrl, "127.0.0.1:6000");
-            while (!(co_await cluster_ready(ctrl))) {
-                usleep(100 * 1000);
-            }
-
-            // node = co_await async_connect("127.0.0.1", "5555");
+            co_await wait_for_cluster_ready(ctrl);
 
             for (auto i = 0; i < COUNT; ++i) {
-                auto s = co_await async_read(node, "k" + to_string(i));
-                assert(s == to_string(i));
+                auto retry = 3;
+                while (retry-- > 0) {
+                    auto s = co_await async_read(node, "k" + to_string(i));
+                    if (s == to_string(i))
+                        break;
+                    node = co_await async_connect("127.0.0.1", "5555");
+                }
+
+                assert(retry > 0);
             }
 
-            // co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
-            // usleep(1000 * 1000);
+            co_await add_node(ctrl, "127.0.0.1:6000,127.0.0.1:5555");
+            co_await wait_for_cluster_ready(ctrl);
+
+            for (auto i = 0; i < COUNT; ++i) {
+                auto retry = 3;
+                while (retry-- > 0) {
+                    auto s = co_await async_read(node, "k" + to_string(i));
+                    if (s == to_string(i))
+                        break;
+                    node = co_await async_connect("127.0.0.1", "5555");
+                }
+
+                assert(retry > 0);
+            }
 
             // co_await add_node(ctrl, "127.0.0.1:6001,127.0.0.1:5555");
             // usleep(1000 * 1000);

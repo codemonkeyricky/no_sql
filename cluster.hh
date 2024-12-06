@@ -34,12 +34,16 @@ struct Cluster {
         auto io = co_await boost::cobalt::this_coro::executor;
         boost::asio::steady_timer timer(io);
 
+        std::cout << "draining node..." << std::endl;
+
         /* wait until all connections drained */
         while (nodes[server]->outstanding) {
             timer.expires_at(std::chrono::steady_clock::now() +
                              std::chrono::milliseconds(100));
             co_await timer.async_wait(boost::cobalt::use_task);
         }
+
+        std::cout << "draining complete!" << std::endl;
 
         can_be_removed.push(server);
     }
@@ -81,11 +85,14 @@ struct Cluster {
                 can_be_removed.pop();
             }
 
-            ready = true;
-            for (auto& n : nodes) {
-                if (n.second->get_status() != "Live") {
-                    ready = false;
-                    break;
+            if (pending_add.empty() && to_be_removed.empty() &&
+                can_be_removed.empty()) {
+                ready = true;
+                for (auto& n : nodes) {
+                    if (n.second->get_status() != "Live") {
+                        ready = false;
+                        break;
+                    }
                 }
             }
 

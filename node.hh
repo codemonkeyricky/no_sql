@@ -34,6 +34,8 @@
 #include <boost/serialization/set.hpp>
 #include <boost/serialization/vector.hpp>
 
+int marker = 0;
+
 using key = std::string;
 using value = std::string;
 using hash = uint64_t;
@@ -826,6 +828,8 @@ class Node final {
         bool running = true;
         while (running) {
 
+            assert(outstanding < 100);
+
 // auto socket =
 #if 0
             auto socket =
@@ -850,13 +854,14 @@ class Node final {
             }
             case 1:
                 running = false;
-                std::cout << self << ":" << "node_listener() - cancelled!"
-                          << std::endl;
-                break;
+                // std::cout << self << ":" << "node_listener() - cancelled!"
+                //           << std::endl;
+                ++marker;
+                --outstanding;
+                co_return;
             }
 #endif
         }
-        --outstanding;
     }
 
     const NodeMap& peers() const { return local_map; }
