@@ -1,46 +1,31 @@
 
-
-#include <boost/asio/cancellation_signal.hpp>
-#include <boost/asio/experimental/parallel_group.hpp>
-#include <boost/system/detail/errc.hpp>
-#include <boost/system/detail/error_code.hpp>
-#include <chrono>
-#include <fstream>
-#include <iomanip>
+#include <array>
+#include <functional>
 #include <iostream>
-#include <memory>
-#include <queue>
-#include <unordered_map>
-
-#include <boost/algorithm/string.hpp>
-#include <boost/asio.hpp>
-#include <boost/cobalt.hpp>
-
+#include <map>
+#include <set>
 #include <string>
-#include <utility>
+#include <sys/types.h>
+#include <thread>
+#include <tuple>
+#include <unordered_map>
+#include <vector>
 
-using namespace std;
+using key = std::string;
+using value = std::string;
 
-int main() {
+using hash = uint64_t;
 
-    // auto coro = []() -> boost::cobalt::task<int> {
-    //     int a = 3;
-    //     co_return a;
-    // };
+constexpr hash get_keyspace_hash(hash i, hash j) {
+    if (i + 1 >= j)
+        return 1;
 
-    boost::asio::io_context io(1);
+    auto m = (i + j) / 2;
+    auto l = get_keyspace_hash(i, i + m);
+    auto r = get_keyspace_hash(i + m, j);
 
-    int var = 0xdeadbeef;
-    cout << "var address = " << &var << endl;
-
-    auto coro = [&]() -> boost::cobalt::task<void> {
-        cout << "coro var address = " << &var << endl;
-        auto a = var;
-        co_return;
-    };
-
-    /* case 2 */
-    boost::cobalt::spawn(io, coro(), boost::asio::detached);
-
-    io.run();
+    // return static_cast<uint64_t>(std::hash<uint64_t>{}(l + r));
+    return l + r;
 }
+
+int main() { std::cout << get_keyspace_hash(0, 4) << std::endl; }
