@@ -964,16 +964,46 @@ class Node final {
         return static_cast<hash>(hash_fn(l + r));
     }
 
+    template <typename Generator, std::size_t... Is>
+    constexpr std::array<
+        std::pair<hash, std::pair<hash, hash>>,
+        sizeof...(Is)> static make_keyspace(Generator generator,
+                                            std::index_sequence<Is...>) {
+        return std::array<std::pair<hash, std::pair<hash, hash>>,
+                          sizeof...(Is)>{generator(Is)...};
+    }
+
+    static constexpr std::pair<unsigned long,
+                               std::pair<unsigned long, unsigned long>>
+    entry(size_t k) noexcept {
+        return {k, {k, k}};
+    }
+
+    template <size_t N> static void compile_time_keyspace() {
+        /* db has N entries */
+        constexpr auto db = cx_map<hash, std::pair<hash, hash>, N>{
+            make_keyspace([](size_t i) { return entry(i); },
+                          std::make_index_sequence<N>{})};
+
+        /* (i, j) are inclusve (eg. (0, 1) should return 2) */
+        static_assert(get_keyspace_hash<cx_hash<uint64_t>>(db, 0, N) == N);
+    }
+
     /* compile time unit test */
     void ctut_keyspace() {
 
-        constexpr cx_map<hash, std::pair<hash, hash>, 3> db = {
-            std::make_pair<int, std::pair<int, int>>(0, {0, 1}),
-            std::make_pair<int, std::pair<int, int>>(1, {0, 1}),
-            std::make_pair<int, std::pair<int, int>>(2, {0, 1}),
-            // std::make_pair<int, std::pair<int, int>>(3, {0, 1}),
-        };
+        compile_time_keyspace<1>();
+        compile_time_keyspace<2>();
+        // compile_time_keyspace<3>();
+        // compile_time_keyspace<4>();
 
-        static_assert(get_keyspace_hash<cx_hash<uint64_t>>(db, 0, 3) == 3);
+        // constexpr cx_map<hash, std ::pair<hash, hash>, 1> db = {
+        //     std::make_pair<int, std::pair<int, int>>(0, {0, 1}),
+        //     // std::make_pair<int, std::pair<int, int>>(1, {0, 1}),
+        //     // std::make_pair<int, std::pair<int, int>>(2, {0, 1}),
+        //     // std::make_pair<int, std::pair<int, int>>(3, {0, 1}),
+        // };
+
+        // static_assert(get_keyspace_hash<cx_hash<uint64_t>>(db, 0, 1) == 1);
     }
 };
