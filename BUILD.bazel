@@ -45,6 +45,7 @@ cc_test(
     name = "remote", 
     srcs = [
         "ut.cc",
+        "compile_ut.hh",
         "node.hh",
         "directory.hh",
         "cluster.hh"

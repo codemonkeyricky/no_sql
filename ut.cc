@@ -22,6 +22,8 @@
 
 #include "cluster.hh"
 
+#include "compile_ut.hh"
+
 using namespace std;
 
 /* shared_ptr to cluster */
