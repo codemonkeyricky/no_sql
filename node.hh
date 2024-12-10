@@ -417,8 +417,8 @@ class Node final {
 
                     auto [ptoken, pts, pid] = *p;
 
-                    auto remote_db = co_await stream_remote(nodehash_lookup[id],
-                                                            ptoken + 1, token);
+                    auto remote_db = co_await stream_from_remote(
+                        nodehash_lookup[id], ptoken + 1, token);
 
                     /* insert into local db */
                     db.insert(remote_db.begin(), remote_db.end());
@@ -522,6 +522,35 @@ class Node final {
         }
         assert(0);
         co_return "";
+    }
+
+    boost::cobalt::task<void> stream_to_remote(const std::string& peer_addr,
+                                               const hash i, const hash j) {
+
+        auto io = co_await boost::asio::this_coro::executor;
+
+        const auto p = peer_addr.find(":");
+        const auto addr = peer_addr.substr(0, p);
+        const auto port = peer_addr.substr(p + 1);
+
+        boost::asio::ip::tcp::resolver resolver(io);
+        boost::asio::ip::tcp::socket socket(io);
+        auto ep = resolver.resolve(addr, port);
+
+        try {
+
+            auto it = db.lower_bound(i);
+            while (it != db.end() && it->first < j) {
+                co_await write_remote(peer_addr, it->second.first,
+                                      it->second.second);
+            }
+
+        } catch (const std::exception& e) {
+            std::cerr << "Connection error: " << e.what() << std::endl;
+            assert(0);
+        }
+
+        co_return;
     }
 
     boost::cobalt::task<void> write_remote(const std::string& peer_addr,
@@ -628,7 +657,7 @@ class Node final {
     }
 
     boost::cobalt::task<std::map<hash, std::pair<key, value>>>
-    stream_remote(const std::string& peer, const hash i, const hash j) {
+    stream_from_remote(const std::string& peer, const hash i, const hash j) {
 
         // std::cout << self << ":" << "stream_remote() invoked!" <<
         // std::endl;
@@ -917,23 +946,84 @@ class Node final {
         return std::make_tuple(std::ref(lookup), std::ref(nodehash_lookup));
     }
 
+    boost::cobalt::task<hash>
+    get_keyspace_hash_remote(const std::string& peer_addr, const hash i,
+                             const hash j) {
+        co_return 0;
+    }
+
+    boost::cobalt::task<void> erase_remote(const std::string& peer_addr,
+                                           const hash i, const hash j) {
+
+        auto io = co_await boost::asio::this_coro::executor;
+
+        const auto p = peer_addr.find(":");
+        const auto addr = peer_addr.substr(0, p);
+        const auto port = peer_addr.substr(p + 1);
+
+        boost::asio::ip::tcp::resolver resolver(io);
+        boost::asio::ip::tcp::socket socket(io);
+        auto ep = resolver.resolve(addr, port);
+
+        try {
+
+            boost::asio::async_connect(
+                socket, ep,
+                [&socket](const boost::system::error_code& error,
+                          const boost::asio::ip::tcp::endpoint&) {});
+
+            /* TODO */
+            // static_assert(0);
+
+            const auto tx =
+                "erase_range:" + std::to_string(i) + "-" + std::to_string(j);
+            co_await boost::asio::async_write(
+                socket, boost::asio::buffer(tx, tx.size()),
+                boost::cobalt::use_task);
+
+            char rx[1024] = {};
+            auto n = co_await socket.async_read_some(boost::asio::buffer(rx),
+                                                     boost::cobalt::use_task);
+
+        } catch (const std::exception& e) {
+            std::cerr << "Connection error: " << e.what() << std::endl;
+            assert(0);
+        }
+    }
+
     // Recursive compile-time hash function for keyspace
-    template <auto hash_fn, typename DB>
-    static constexpr hash get_keyspace_hash(DB& db, hash i, hash j) {
+    hash get_keyspace_hash(hash i, hash j) {
 
         auto i_it = db.lower_bound(i);
         auto j_it = db.lower_bound(j);
 
-        if (i_it + 1 >= j_it) {
-            return 1;
-        }
+        if (i_it == db.end())
+            return 0;
 
         hash m = (i + j) / 2;
-        auto l = get_keyspace_hash<hash_fn>(db, i, m);
-        auto r = get_keyspace_hash<hash_fn>(db, m, j);
+        auto l = get_keyspace_hash(i, m);
+        auto r = get_keyspace_hash(m, j);
 
-        return static_cast<hash>(hash_fn(l + r));
+        return static_cast<uint64_t>(std::hash<hash>{}(l + r));
     }
 
-    // friend Compile::UT;
+    boost::cobalt::task<void> anti_entropy(const std::string& replica, hash i,
+                                           hash j) {
+        auto l = get_keyspace_hash(i, j);
+        auto r = co_await get_keyspace_hash_remote(replica, i, j);
+
+        if (l != r) {
+            if (l == 0) {
+                co_await erase_remote(replica, i, j);
+            } else if (r == 0) {
+                co_await stream_to_remote(replica, i, j);
+            } else {
+                int m = (i + j) / 2;
+                co_await anti_entropy(replica, i, m);
+                co_await anti_entropy(replica, m, j);
+            }
+        }
+
+        co_return;
+    }
 };

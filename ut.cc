@@ -22,7 +22,7 @@
 
 #include "cluster.hh"
 
-#include "compile_ut.hh"
+// #include "compile_ut.hh"
 
 using namespace std;
 
@@ -180,6 +180,8 @@ int main() {
                 char rx_payload[1024] = {};
                 std::size_t n = co_await socket->async_read_some(
                     boost::asio::buffer(rx_payload), boost::cobalt::use_task);
+
+                    co_return;
             };
 
             auto cluster_ready =
