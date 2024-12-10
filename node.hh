@@ -524,24 +524,25 @@ class Node final {
         co_return "";
     }
 
-    boost::cobalt::task<void> stream_to_remote(const std::string& peer_addr,
+    /* stream key range (i-j] to peer */
+    boost::cobalt::task<void> stream_to_remote(const std::string& replica,
                                                const hash i, const hash j) {
 
-        auto io = co_await boost::asio::this_coro::executor;
+        // auto io = co_await boost::asio::this_coro::executor;
 
-        const auto p = peer_addr.find(":");
-        const auto addr = peer_addr.substr(0, p);
-        const auto port = peer_addr.substr(p + 1);
+        // const auto p = replica.find(":");
+        // const auto addr = replica.substr(0, p);
+        // const auto port = replica.substr(p + 1);
 
-        boost::asio::ip::tcp::resolver resolver(io);
-        boost::asio::ip::tcp::socket socket(io);
-        auto ep = resolver.resolve(addr, port);
+        // boost::asio::ip::tcp::resolver resolver(io);
+        // boost::asio::ip::tcp::socket socket(io);
+        // auto ep = resolver.resolve(addr, port);
 
         try {
 
             auto it = db.lower_bound(i);
             while (it != db.end() && it->first < j) {
-                co_await write_remote(peer_addr, it->second.first,
+                co_await write_remote(replica, it->second.first,
                                       it->second.second);
             }
 
@@ -631,10 +632,6 @@ class Node final {
 
         /* walk the ring until we find a working node */
         for (auto id : ids) {
-
-            // std::cout << "write(): " << self << " -> " <<
-            // nodehash_lookup[id]
-            //           << ": " << key << std::endl;
 
             if (id == this->id) {
                 ++stats.write;
