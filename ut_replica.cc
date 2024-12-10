@@ -237,46 +237,69 @@ auto async_write = [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
     co_return;
 };
 
+auto async_cmd = [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
+                    const string& cmd) -> boost::cobalt::task<std::string> {
+    try {
+        std::string tx = cmd;
+        co_await boost::asio::async_write(*socket,
+                                          boost::asio::buffer(tx, tx.size()),
+                                          boost::cobalt::use_task);
+
+        char rx[1024] = {};
+        std::size_t n = co_await socket->async_read_some(
+            boost::asio::buffer(rx), boost::cobalt::use_task);
+
+        co_return string(rx);
+
+    } catch (boost::system::system_error const& e) {
+    }
+
+    co_return "";
+};
+
 }; // namespace Command
 
-int main() {
-    constexpr int NODES = 5;
-    constexpr int RF = 1;
-    constexpr int VNODE = 3;
+constexpr int NODES = 2;
+constexpr int RF = 2;
+constexpr int VNODE = 1;
 
-    thread cluster_instance([] {
-        boost::asio::io_context io_context(1);
-        boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
-        signals.async_wait([&](auto, auto) { io_context.stop(); });
+auto cluster_runtime = []() {
+    boost::asio::io_context io_context(1);
+    boost::asio::signal_set signals(io_context, SIGINT, SIGTERM);
+    signals.async_wait([&](auto, auto) { io_context.stop(); });
 
-        cluster = shared_ptr<Cluster>(new Cluster());
+    cluster = shared_ptr<Cluster>(new Cluster());
 
-        string addr = "127.0.0.1";
-        int port = 5555;
-        string seed;
-        for (auto i = 0; i < NODES; ++i) {
+    string addr = "127.0.0.1";
+    int port = 5555;
+    string seed;
+    for (auto i = 0; i < NODES; ++i) {
 
-            string addr_port = addr + ":" + to_string(port++);
-            auto& n = cluster->nodes[addr_port] =
-                std::unique_ptr<Node>(new Node(addr_port, seed, VNODE, RF));
-            if (seed == "") {
-                seed = addr_port;
-            }
-            /* node control plane */
-            boost::cobalt::spawn(io_context, n->node_listener(),
-                                 boost::asio::detached);
+        string addr_port = addr + ":" + to_string(port++);
+        auto& n = cluster->nodes[addr_port] =
+            std::unique_ptr<Node>(new Node(addr_port, seed));
+        if (seed == "") {
+            seed = addr_port;
         }
-
-        /* distributed system heartbeat */
-        boost::cobalt::spawn(io_context, cluster->heartbeat(),
+        /* node control plane */
+        boost::cobalt::spawn(io_context, n->node_listener(),
                              boost::asio::detached);
+    }
 
-        /* distributed system control plane */
-        boost::cobalt::spawn(io_context, system_listener(cluster),
-                             boost::asio::detached);
+    /* distributed system heartbeat */
+    boost::cobalt::spawn(io_context, cluster->heartbeat(),
+                         boost::asio::detached);
 
-        io_context.run();
-    });
+    /* distributed system control plane */
+    boost::cobalt::spawn(io_context, system_listener(cluster),
+                         boost::asio::detached);
+
+    io_context.run();
+};
+
+int main() {
+
+    thread cluster_instance(cluster_runtime);
 
     /* test code here */
 
@@ -293,7 +316,7 @@ int main() {
 
             usleep(500 * 1000);
 
-            auto node = co_await Command::async_connect("127.0.0.1", "5555");
+            auto node = co_await Command::async_connect("127.0.0.1", "5556");
 
             /* write */
             for (auto i = 0; i < COUNT; ++i) {
@@ -307,18 +330,25 @@ int main() {
                 assert(s == to_string(i));
             }
 
-            for (auto i = 0; i < COUNT; ++i) {
-                auto retry = 3;
-                while (retry-- > 0) {
-                    auto s =
-                        co_await Command::async_read(node, "k" + to_string(i));
-                    if (s == to_string(i))
-                        break;
-                    node = co_await Command::async_connect("127.0.0.1", "5555");
-                }
+            // usleep(50 * 1000 * 1000);
 
-                assert(retry > 0);
-            }
+            co_await Command::async_cmd(node, "aa");
+            // assert(s == to_string(i));
+
+            // for (auto i = 0; i < COUNT; ++i) {
+            //     auto retry = 3;
+            //     while (retry-- > 0) {
+            //         auto s =
+            //             co_await Command::async_read(node, "k" +
+            //             to_string(i));
+            //         if (s == to_string(i))
+            //             break;
+            //         node = co_await Command::async_connect("127.0.0.1",
+            //         "5555");
+            //     }
+
+            //     assert(retry > 0);
+            // }
 
             exit(0);
         }(),

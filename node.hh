@@ -531,11 +531,17 @@ class Node final {
 
         try {
 
+            auto cnt = 0;
             auto it = db.lower_bound(i);
             while (it != db.end() && it->first < j) {
                 co_await write_remote(replica, it->second.first,
                                       it->second.second);
+                ++it;
+                ++cnt;
             }
+
+            std::cerr << "stream_to_remote(): " << replica
+                      << " - records = " << cnt << std::endl;
 
         } catch (const std::exception& e) {
             std::cerr << "Connection error: " << e.what() << std::endl;
@@ -644,19 +650,19 @@ class Node final {
         co_await gossip_tx();
     }
 
-    template <typename V, typename IT> auto next_it(V var, IT it) -> auto {
-        if (std::next(it) == var.end()) {
+    template <typename V, typename IT> auto next_it(V& var, IT& it) -> auto {
+        if (next(it) == var.end()) {
             return var.begin();
         } else {
-            return std::next(it);
+            return next(it);
         }
     }
 
-    template <typename V, typename IT> auto prev_it(V var, IT it) -> auto {
+    template <typename V, typename IT> auto prev_it(V& var, IT& it) -> auto {
         if (it != var.begin()) {
-            return std::prev(it);
+            return prev(it);
         } else {
-            return std::prev(var.end());
+            return prev(var.end());
         }
     }
 
@@ -875,6 +881,13 @@ class Node final {
                     co_await boost::asio::async_write(
                         socket, boost::asio::buffer(resp.c_str(), resp.size()),
                         boost::cobalt::use_task);
+                } else if (cmd == "aa") {
+                    co_await anti_entropy();
+
+                    auto resp = std::string("aa_ack:");
+                    co_await boost::asio::async_write(
+                        socket, boost::asio::buffer(resp.c_str(), resp.size()),
+                        boost::cobalt::use_task);
                 }
             }
         } catch (const std::exception& e) {
@@ -1029,24 +1042,37 @@ class Node final {
     }
 
     // Recursive compile-time hash function for keyspace
-    hash get_keyspace_hash(hash i, hash j) {
+    hash get_range_hash(hash i, hash j) {
 
-        auto i_it = db.lower_bound(i);
-        auto j_it = db.lower_bound(j);
+        auto ii = db.lower_bound(i);
+        auto jj = db.lower_bound(j);
 
-        if (i_it == db.end())
+        if (ii == db.end() || ii->first >= j) {
+            /* nothing in this range */
             return 0;
+        }
+
+        if (ii == jj) {
+            /* supposedly ii is inclusive and jj is exclusive. If they point to
+             * the same thing then range is invalid. */
+            return 0;
+        }
+
+        if (next(ii) == jj) {
+            /* base case - only one entry */
+            return ii->first;
+        }
 
         hash m = (i + j) / 2;
-        auto l = get_keyspace_hash(i, m);
-        auto r = get_keyspace_hash(m, j);
+        auto l = get_range_hash(i, m);
+        auto r = get_range_hash(m, j);
 
         return static_cast<uint64_t>(std::hash<hash>{}(l + r));
     }
 
     boost::cobalt::task<void> sync_range(const std::string& replica, hash i,
                                          hash j) {
-        auto l = get_keyspace_hash(i, j);
+        auto l = get_range_hash(i, j);
         auto r = co_await get_keyspace_hash_remote(replica, i, j);
 
         if (l != r) {
