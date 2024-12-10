@@ -644,6 +644,55 @@ class Node final {
         co_await gossip_tx();
     }
 
+    template <typename V, typename IT> auto next_it(V var, IT it) -> auto {
+        if (std::next(it) == var.end()) {
+            return var.begin();
+        } else {
+            return std::next(it);
+        }
+    }
+
+    template <typename V, typename IT> auto prev_it(V var, IT it) -> auto {
+        if (it != var.begin()) {
+            return std::prev(it);
+        } else {
+            return std::prev(var.end());
+        }
+    }
+
+    boost::cobalt::task<void> anti_entropy() {
+
+        const auto tokens = local_map.nodes[self].tokens;
+        for (auto& token : tokens) {
+            std::array<uint64_t, 3> target = {token};
+
+            /* determine replicas */
+            std::vector<std::string> replicas;
+            auto it = lookup.lower_bound(target);
+            auto rf = replication_factor - 1;
+            while (rf-- > 0) {
+                it = next_it(lookup, it);
+                const auto [skip, skip2, id_hash] = *it;
+                replicas.push_back(nodehash_lookup[id_hash]);
+            }
+
+            /* find range to stream */
+            it = lookup.lower_bound(target);
+            it = prev_it(lookup, it);
+            auto [ptoken, skip, skip1] = *it;
+
+            /* sync range is inclusive of i and exclusive of j*/
+            auto i = ptoken + 1;
+            auto j = token + 1;
+
+            for (auto& replica : replicas) {
+                co_await sync_range(replica, i, j);
+            }
+        }
+
+        /* gossip during heartbeat */
+    }
+
     boost::cobalt::task<std::map<hash, std::pair<key, value>>>
     stream_from_remote(const std::string& peer, const hash i, const hash j) {
 
@@ -995,8 +1044,8 @@ class Node final {
         return static_cast<uint64_t>(std::hash<hash>{}(l + r));
     }
 
-    boost::cobalt::task<void> anti_entropy(const std::string& replica, hash i,
-                                           hash j) {
+    boost::cobalt::task<void> sync_range(const std::string& replica, hash i,
+                                         hash j) {
         auto l = get_keyspace_hash(i, j);
         auto r = co_await get_keyspace_hash_remote(replica, i, j);
 
@@ -1007,8 +1056,8 @@ class Node final {
                 co_await stream_to_remote(replica, i, j);
             } else {
                 int m = (i + j) / 2;
-                co_await anti_entropy(replica, i, m);
-                co_await anti_entropy(replica, m, j);
+                co_await sync_range(replica, i, m);
+                co_await sync_range(replica, m, j);
             }
         }
 

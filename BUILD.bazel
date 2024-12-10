@@ -42,6 +42,28 @@ cc_test(
 )
 
 cc_test(
+    name = "replica", 
+    srcs = [
+        "ut_replica.cc",
+        "compile_ut.hh",
+        "node.hh",
+        "directory.hh",
+        "cluster.hh"
+    ], 
+    copts = [
+        "-std=c++20",
+    ],
+    linkopts = [
+        "-lboost_serialization",
+        "-lboost_cobalt",
+        "-L/usr/local/lib",
+    ],
+    env = {
+        "LD_LIBRARY_PATH": "/usr/local/lib",
+    },
+)
+
+cc_test(
     name = "remote", 
     srcs = [
         "ut.cc",
