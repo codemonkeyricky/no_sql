@@ -340,7 +340,7 @@ int main() {
 
             usleep(500 * 1000);
 
-            node = co_await Command::async_connect("127.0.0.1", "5556");
+            node = co_await Command::async_connect("127.0.0.1", "5555");
             co_await Command::async_cmd(node, "aa");
 
             usleep(500 * 1000);

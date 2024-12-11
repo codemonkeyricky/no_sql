@@ -707,7 +707,13 @@ class Node final {
             auto j = token + 1;
 
             for (auto& replica : replicas) {
-                cnt += co_await sync_range(replica, i, j);
+                if (i < j) {
+                    cnt += co_await sync_range(replica, i, j);
+                } else {
+                    cnt += co_await sync_range(replica, 0, j);
+                    cnt += co_await sync_range(
+                        replica, i, Partitioner::instance().getRange());
+                }
             }
 
             std::cout << "anti_entropy(): sync = " << cnt << std::endl;
