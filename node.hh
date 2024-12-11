@@ -155,6 +155,7 @@ class Node final {
     std::shared_ptr<boost::asio::steady_timer> cancel;
     uint32_t outstanding = 0;
     node_addr self;
+    bool anti_entropy_req = false;
 
   private:
     Partitioner& p = Partitioner::instance();
@@ -525,13 +526,13 @@ class Node final {
     }
 
     /* stream key range (i-j] to peer */
-    boost::cobalt::task<void> stream_to_remote(const std::string& replica,
-                                               const hash i,
-                                               const hash j) const {
+    boost::cobalt::task<size_t> stream_to_remote(const std::string& replica,
+                                                 const hash i,
+                                                 const hash j) const {
 
+        auto cnt = 0;
         try {
 
-            auto cnt = 0;
             auto it = db.lower_bound(i);
             while (it != db.end() && it->first < j) {
                 co_await write_remote(replica, it->second.first,
@@ -548,7 +549,7 @@ class Node final {
             assert(0);
         }
 
-        co_return;
+        co_return cnt;
     }
 
     boost::cobalt::task<void> write_remote(const std::string& peer_addr,
@@ -648,6 +649,19 @@ class Node final {
 
         /* gossip during heartbeat */
         co_await gossip_tx();
+
+        if (this->anti_entropy_req) {
+
+            auto start = std::chrono::system_clock::now();
+            size_t cnt = co_await anti_entropy();
+            auto end = std::chrono::system_clock::now();
+            auto elapsed =
+                std::chrono::duration_cast<std::chrono::milliseconds>(end -
+                                                                      start);
+            std::cout << "anti_entropy duration: " << elapsed.count() << '\n';
+
+            this->anti_entropy_req = false;
+        }
     }
 
     template <typename V, typename IT> auto next_it(V& var, IT& it) -> auto {
@@ -666,9 +680,10 @@ class Node final {
         }
     }
 
-    boost::cobalt::task<void> anti_entropy() {
+    boost::cobalt::task<size_t> anti_entropy() {
 
         const auto tokens = local_map.nodes[self].tokens;
+        size_t cnt = 0;
         for (auto& token : tokens) {
             std::array<uint64_t, 3> target = {token};
 
@@ -692,11 +707,13 @@ class Node final {
             auto j = token + 1;
 
             for (auto& replica : replicas) {
-                co_await sync_range(replica, i, j);
+                cnt += co_await sync_range(replica, i, j);
             }
+
+            std::cout << "anti_entropy(): sync = " << cnt << std::endl;
         }
 
-        /* gossip during heartbeat */
+        co_return cnt;
     }
 
     boost::cobalt::task<std::map<hash, std::pair<key, value>>>
@@ -882,9 +899,26 @@ class Node final {
                         socket, boost::asio::buffer(resp.c_str(), resp.size()),
                         boost::cobalt::use_task);
                 } else if (cmd == "aa") {
-                    co_await anti_entropy();
 
-                    auto resp = std::string("aa_ack:");
+                    auto resp =
+                        std::string("aa_ack:"); //  + std::to_string(cnt);
+                    co_await boost::asio::async_write(
+                        socket, boost::asio::buffer(resp.c_str(), resp.size()),
+                        boost::cobalt::use_task);
+
+                    this->anti_entropy_req = true;
+
+                } else if (cmd == "range_hash") {
+
+                    auto range =
+                        std::string(data + cmd.size() + 1, n - cmd.size() - 1);
+                    auto p = range.find("-");
+                    auto i = range.substr(0, p);
+                    auto j = range.substr(p + 1);
+                    auto hash = get_range_hash(stoll(i), stoll(j));
+
+                    auto resp =
+                        std::string("range_hash_ack:") + std::to_string(hash);
                     co_await boost::asio::async_write(
                         socket, boost::asio::buffer(resp.c_str(), resp.size()),
                         boost::cobalt::use_task);
@@ -996,14 +1030,60 @@ class Node final {
         return std::make_tuple(std::ref(lookup), std::ref(nodehash_lookup));
     }
 
-    boost::cobalt::task<hash>
-    get_keyspace_hash_remote(const std::string& peer_addr, const hash i,
-                             const hash j) {
-        co_return 0;
+    boost::cobalt::task<std::string> async_cmd(const std::string& peer_addr,
+                                               const std::string& cmd) {
+
+        auto io = co_await boost::asio::this_coro::executor;
+
+        const auto p = peer_addr.find(":");
+        const auto addr = peer_addr.substr(0, p);
+        const auto port = peer_addr.substr(p + 1);
+
+        boost::asio::ip::tcp::resolver resolver(io);
+        boost::asio::ip::tcp::socket socket(io);
+        auto ep = resolver.resolve(addr, port);
+
+        try {
+
+            boost::asio::async_connect(
+                socket, ep,
+                [&socket](const boost::system::error_code& error,
+                          const boost::asio::ip::tcp::endpoint&) {});
+
+            const auto tx = cmd;
+            co_await boost::asio::async_write(
+                socket, boost::asio::buffer(tx, tx.size()),
+                boost::cobalt::use_task);
+
+            char rx[1024] = {};
+            auto n = co_await socket.async_read_some(boost::asio::buffer(rx),
+                                                     boost::cobalt::use_task);
+            co_return std::string(rx);
+
+        } catch (const std::exception& e) {
+            std::cerr << "Connection error: " << e.what() << std::endl;
+        }
+
+        assert(0);
     }
 
-    boost::cobalt::task<void> erase_remote(const std::string& peer_addr,
-                                           const hash i, const hash j) {
+    boost::cobalt::task<hash>
+    get_range_hash_remote(const std::string& peer_addr, const hash i,
+                          const hash j) {
+
+        const auto cmd =
+            "range_hash:" + std::to_string(i) + "-" + std::to_string(j);
+
+        auto hash_str = co_await async_cmd(peer_addr, cmd);
+
+        hash_str = hash_str.substr(sizeof("range_hash_ack"));
+        auto hash = std::stoll(hash_str);
+
+        co_return hash;
+    }
+
+    boost::cobalt::task<size_t> erase_remote(const std::string& peer_addr,
+                                             const hash i, const hash j) {
 
         auto io = co_await boost::asio::this_coro::executor;
 
@@ -1039,6 +1119,9 @@ class Node final {
             std::cerr << "Connection error: " << e.what() << std::endl;
             assert(0);
         }
+
+        /* TODO: records erased? */
+        co_return 0;
     }
 
     // Recursive compile-time hash function for keyspace
@@ -1070,23 +1153,25 @@ class Node final {
         return static_cast<uint64_t>(std::hash<hash>{}(l + r));
     }
 
-    boost::cobalt::task<void> sync_range(const std::string& replica, hash i,
-                                         hash j) {
+    boost::cobalt::task<size_t> sync_range(const std::string& replica, hash i,
+                                           hash j) {
         auto l = get_range_hash(i, j);
-        auto r = co_await get_keyspace_hash_remote(replica, i, j);
+        auto r = co_await get_range_hash_remote(replica, i, j);
+
+        size_t cnt = 0;
 
         if (l != r) {
             if (l == 0) {
-                co_await erase_remote(replica, i, j);
+                cnt += co_await erase_remote(replica, i, j);
             } else if (r == 0) {
-                co_await stream_to_remote(replica, i, j);
+                cnt += co_await stream_to_remote(replica, i, j);
             } else {
                 int m = (i + j) / 2;
-                co_await sync_range(replica, i, m);
-                co_await sync_range(replica, m, j);
+                cnt += co_await sync_range(replica, i, m);
+                cnt += co_await sync_range(replica, m, j);
             }
         }
 
-        co_return;
+        co_return cnt;
     }
 };

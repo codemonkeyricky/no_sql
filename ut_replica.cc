@@ -252,6 +252,10 @@ auto async_cmd = [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
         co_return string(rx);
 
     } catch (boost::system::system_error const& e) {
+
+        cout << "read error: " << e.what() << endl;
+        assert(0);
+        co_return "";
     }
 
     co_return "";
@@ -333,6 +337,13 @@ int main() {
             // usleep(50 * 1000 * 1000);
 
             co_await Command::async_cmd(node, "aa");
+
+            usleep(500 * 1000);
+
+            node = co_await Command::async_connect("127.0.0.1", "5556");
+            co_await Command::async_cmd(node, "aa");
+
+            usleep(500 * 1000);
             // assert(s == to_string(i));
 
             // for (auto i = 0; i < COUNT; ++i) {
