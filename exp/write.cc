@@ -12,6 +12,10 @@
 #include <string>
 #include <vector>
 
+#include <boost/archive/text_iarchive.hpp>
+#include <boost/archive/text_oarchive.hpp>
+#include <boost/serialization/vector.hpp>
+
 using namespace std;
 
 constexpr int KB = 1024;
@@ -72,21 +76,20 @@ class CommitLog {
     }
 };
 
-class BloomFilter {
+class Bloom {
   private:
     std::vector<bool>
         bit_array; // Use vector with dynamic size based on expected keys
     size_t hash_count;
 
     size_t hash(const std::string& key, size_t seed) const {
-    std::hash<std::string> hasher;
-    return (hasher(key) + seed) % bit_array.size();
-}
-
-    
+        std::hash<std::string> hasher;
+        return (hasher(key) + seed) % bit_array.size();
+    }
 
   public:
-    BloomFilter(size_t expected_keys, double false_positive_rate) {
+    Bloom() {}
+    Bloom(size_t expected_keys, double false_positive_rate) {
         size_t bit_array_size =
             -(expected_keys * std::log(false_positive_rate)) /
             (std::log(2) * std::log(2));
@@ -110,17 +113,38 @@ class BloomFilter {
             }
         }
     }
+
+    template <class Archive>
+    void serialize(Archive& ar, const unsigned int version) {
+        ar & bit_array;
+        ar & hash_count;
+    }
 };
 
 class Sstable {
   private:
     std::string file_path;
-    BloomFilter bloom_filter;
+    Bloom bloom;
     std::map<std::string, std::streampos> index;
+
+    std::string serialize(Bloom& data) {
+        std::ostringstream oss;
+        boost::archive::text_oarchive oa(oss);
+        oa << data;
+        return oss.str();
+    }
+
+    Bloom deserialize(std::string& data) {
+        Bloom rv;
+        std::istringstream iss(data);
+        boost::archive::text_iarchive ia(iss);
+        ia >> rv;
+        return std::move(rv);
+    }
 
   public:
     explicit Sstable(std::map<std::string, std::string>&& db) noexcept
-        : bloom_filter(db.size(), 0.01) { // Initialize BloomFilter with 1% FPR
+        : bloom(db.size(), 0.01) { // Initialize BloomFilter with 1% FPR
         try {
             // Create a new file
             file_path = "sstable.dat";
@@ -131,11 +155,13 @@ class Sstable {
 
             // Write Bloom filter
             for (const auto& [key, value] : db) {
-                bloom_filter.add(key);
+                bloom.add(key);
             }
-
             // Placeholder for Bloom filter serialization (implement if needed)
             file.write("BLOOMFILTERPLACEHOLDER", 24);
+
+            // auto s = serialize(bloom);
+            // file.write(s.c_str(), s.size());
 
             // Write data and index sections directly from db
             for (const auto& [key, value] : db) {
@@ -158,11 +184,12 @@ class Sstable {
     }
 
     explicit Sstable(const std::string& path) noexcept
-        : bloom_filter(0, 0.01) { // Placeholder BloomFilter initialization
+        : bloom(0, 0.01) { // Placeholder BloomFilter initialization
         file_path = path;
         std::ifstream file(file_path, std::ios::binary);
         if (!file.is_open()) {
-            throw std::runtime_error("Failed to open SSTable file.");
+            // throw std::runtime_error("Failed to open SSTable file.");
+            assert(0);
         }
 
         // Load Bloom filter (placeholder)
@@ -183,7 +210,7 @@ class Sstable {
     }
 
     bool likely_contains_key(const std::string& key) {
-        return bloom_filter.might_contain(key);
+        return bloom.might_contain(key);
     }
 
     std::string get_value(const std::string& key) {
@@ -220,27 +247,32 @@ class Memtable {
     uint64_t get_size() const { return size; }
 
     std::unique_ptr<Sstable> flush() {
-        auto sstable = std::make_unique<Sstable>(std::move(db));
+        return std::make_unique<Sstable>(std::move(db));
     }
 };
 
 struct Node {
 
     CommitLog log;
-    Memtable mtable;
+
+    void flush() { auto sstable = memtable.flush(); }
 
   public:
+    Memtable memtable;
+    Node() : log("clog.txt") {}
+
     void write(const std::string& k, const std::string& v) {
 
         /* append to log */
         log.append(k, v);
 
         /* update memtable */
+        memtable.insert(k, v);
     }
 
     void heartbeat() {
-        if (mtable.get_size() >= MEMTABLE_FLUSH_SIZE_MB) {
-            auto sstable = mtable.flush();
+        if (memtable.get_size() >= MEMTABLE_FLUSH_SIZE_MB) {
+            flush();
         }
     }
 };
@@ -249,31 +281,37 @@ int main() {
     CommitLog commitLog("commit_log.txt");
 
     // Data to append (key-value pair)
-    std::string key = "user1000000";
+    std::string key = "user";
     std::string value = "A"; // Starting with a single character
 
     // Size of value to append in each entry to eventually reach ~1GB total size
-    size_t targetSize = 1024 * 1024 * 1024; // 1GB in bytes
-    size_t entrySize = 1024;                // Size of each value (1KB)
-    size_t totalAppends =
-        targetSize / entrySize; // Number of appends to reach 1GB
+    // size_t targetSize = (16 * MB);
+    size_t entrySize = 1024; // Size of each value (1KB)
+    // size_t totalAppends =
+    //     targetSize / entrySize; // Number of appends to reach 1GB
 
     // Fill value with repeated 'A' characters to form 1KB data per entry
     value = std::string(entrySize, 'A');
 
+    Node node;
+
     // Measure the time taken to append 1GB worth of data
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    for (size_t i = 0; i < totalAppends; ++i) {
-        commitLog.append(key + std::to_string(i),
-                         value); // Unique key for each entry
+    int i = 0;
+    while (true) {
+        node.write(key + std::to_string(i++), value);
+        if (node.memtable.get_size() >= 1 * GB) {
+            break;
+        }
     }
 
     auto endTime = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = endTime - startTime;
 
-    std::cout << "Time taken to append 1GB of data: " << duration.count()
-              << " seconds\n";
+    std::cout << "append to commit log: " << duration.count() << " seconds\n";
+
+    node.flush();
 
     return 0;
 }
