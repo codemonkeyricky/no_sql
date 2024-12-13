@@ -126,34 +126,53 @@ class Sstable {
         // Initialize BloomFilter with 1% FPR
         : bloom(db.size(), 0.01), filename(filename) {
         try {
-            // Create a new file
-            std::ofstream file(filename, std::ios::binary);
-            if (!file.is_open()) {
-                throw std::runtime_error("Failed to create SSTable file.");
+
+            /* create bloom.db */
+
+            // Write Bloom filter
+            for (const auto& [key, value] : db) {
+                bloom.add(key);
             }
 
-            // Serialize and write Bloom filter
-            std::string serialized_bloom = serialize(bloom);
-            file.write(serialized_bloom.c_str(), serialized_bloom.size());
+            std::ofstream file_bloom(filename + "_bloom.db",
+                                     std::ios::binary | std::ofstream::trunc);
+            assert(file_bloom.is_open());
 
-            // Write data and store the position for the index
+            std::string serialized_bloom = serialize(bloom);
+            file_bloom.write(serialized_bloom.c_str(), serialized_bloom.size());
+            file_bloom.close();
+
+            /* create data.db */
+
+            std::ofstream file_data(filename + "_data.db",
+                                    std::ios::binary | std::ofstream::trunc);
+
             std::vector<std::pair<std::string, std::streampos>> index;
             for (const auto& [key, value] : db) {
                 index.push_back(
-                    {key, file.tellp()}); // Save the offset of the current
-                                          // position in the file
-                file.write(value.c_str(), value.size());
-                file.put('\0'); // Null-terminate each value
+                    {key, file_data.tellp()}); // Save the offset of the
+                                                // current position in the file
+                file_data.write(value.c_str(), value.size());
+                file_data.put('\0'); // Null-terminate each value
             }
+
+            file_data.close();
+
+            /* create index.db */
+
+            std::ofstream file_index(filename + "_index.db",
+                                     std::ios::binary | std::ofstream::trunc);
 
             // Write index section at the end of the file
             for (const auto& [key, pos] : index) {
-                file.write(key.c_str(), key.size());
-                file.put('\0'); // Null-terminate the key
-                file.write(reinterpret_cast<const char*>(&pos), sizeof(pos));
+                file_index.write(key.c_str(), key.size());
+                file_index.put('\0'); // Null-terminate the key
+                file_index.write(reinterpret_cast<const char*>(&pos),
+                                 sizeof(pos));
+                // file_index.put('\0'); // Null-terminate the key
             }
 
-            file.close();
+            file_index.close();
         } catch (const std::exception& e) {
             std::cerr << "Error creating SSTable: " << e.what() << std::endl;
         }
@@ -161,6 +180,10 @@ class Sstable {
 
     explicit Sstable(const std::string& path) noexcept
         : bloom(0, 0.01) { // Placeholder BloomFilter initialization
+
+        /* TODO: */
+        assert(0);
+
         filename = path;
         std::ifstream file(filename, std::ios::binary);
         if (!file.is_open()) {
@@ -195,22 +218,24 @@ class Sstable {
 
     std::optional<std::string> get_value(const std::string& key) {
         // Open the file to read the value directly using the key's offset
-        std::ifstream file(filename, std::ios::binary);
-        if (!file.is_open()) {
-            throw std::runtime_error(
-                "Failed to open SSTable file for reading.");
-        }
+        std::ifstream file_index(filename + "_index.db", std::ios::binary);
+        assert(file_index.is_open());
 
         // Locate the index by reading the index section from the end of the
         // file
-        file.seekg(-1, std::ios::end);
         std::map<std::string, std::streampos> index;
-        while (file.tellg() > 0) {
-            std::string idx_key;
-            std::getline(file, idx_key, '\0');
-            std::streampos pos;
-            file.read(reinterpret_cast<char*>(&pos), sizeof(pos));
-            index[idx_key] = pos;
+        {
+            file_index.seekg(0);
+            while (!file_index.eof()) {
+                std::string key;
+                std::getline(file_index, key, '\0');
+                if (key == "")
+                    break;
+                std::streampos pos;
+                file_index.read(reinterpret_cast<char*>(&pos), sizeof(pos));
+                index[key] = pos;
+            }
+            file_index.close();
         }
 
         // Look for the key in the index
@@ -219,10 +244,18 @@ class Sstable {
             return {}; // Key not found
         }
 
-        // Seek to the position of the value in the file
-        file.seekg(it->second);
         std::string value;
-        std::getline(file, value, '\0');
+        {
+            std::ifstream file_data(filename + "_data.db", std::ios::binary);
+
+            // Seek to the position of the value in the file
+
+            file_data.seekg(it->second);
+            // file_data.seekg(0);
+            std::getline(file_data, value, '\0');
+
+            file_data.close();
+        }
 
         return value;
     }
@@ -263,7 +296,7 @@ struct Node {
 
     deque<unique_ptr<Sstable>> q;
 
-    int sstable_index;
+    int sstable_index = 0;
 
     void memtable_flush() {
 
@@ -345,6 +378,14 @@ int main() {
     // Fill value with repeated 'A' characters to form 1KB data per entry
     value = std::string(entrySize, 'A');
 
+    Bloom bloom(8, 0.01);
+    for (auto i = 0; i < 8; ++i) {
+        bloom.add(to_string(i));
+    }
+    for (auto i = 0; i < 10; ++i) {
+        cout << bloom.might_contain(to_string(i)) << endl;
+    }
+
     Node node;
 
     // Measure the time taken to append 1GB worth of data
@@ -360,13 +401,14 @@ int main() {
         }
         */
 
-    for (auto i = 0; i < 32; ++i) {
+    for (auto i = 0; i < 8; ++i) {
         node.write(to_string(i), to_string(i));
     }
 
-    cout << *node.read("0") << endl;
+    cout << *node.read("7") << endl;
     node.memtable_flush();
-    cout << *node.read("0") << endl;
+    auto v = node.read("3");
+    cout << *v << endl;
 
     auto endTime = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = endTime - startTime;
