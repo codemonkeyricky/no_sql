@@ -3,11 +3,14 @@
 #include <chrono>
 #include <cmath>
 #include <ctime>
+#include <deque>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
+#include <optional>
+#include <queue>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -21,15 +24,15 @@ using namespace std;
 constexpr int KB = 1024;
 constexpr int MB = 1024 * KB;
 constexpr int GB = 1024 * MB;
-constexpr int MEMTABLE_FLUSH_SIZE_MB = (128 * MB);
+constexpr int MEMTABLE_FLUSH_SIZE = (128 * MB);
 
 class CommitLog {
   public:
-    CommitLog(const std::string& logFileName) : logFileName_(logFileName) {}
+    CommitLog(const std::string& filename) : filename(filename) {}
 
     // Function to append key-value pair to the log file
     void append(const std::string& key, const std::string& value) {
-        std::ofstream logFile(logFileName_, std::ios::app);
+        std::ofstream logFile(filename, std::ios::app);
         if (!logFile.is_open()) {
             std::cerr << "Failed to open log file for appending.\n";
             return;
@@ -41,39 +44,14 @@ class CommitLog {
         logFile.close();
     }
 
-    // Function to read and print all entries in the commit log
-    void printLog() {
-        std::ifstream logFile(logFileName_);
-        if (!logFile.is_open()) {
-            std::cerr << "Failed to open log file for reading.\n";
-            return;
-        }
-
-        std::string line;
-        while (std::getline(logFile, line)) {
-            std::cout << line << "\n";
-        }
-
-        logFile.close();
+    void clear() {
+        /* clear file */
+        std::ofstream log(filename, std::ofstream::out | std::ofstream::trunc);
+        log.close();
     }
 
   private:
-    std::string logFileName_;
-
-    // Helper function to get current timestamp as a string
-    std::string getCurrentTimestamp() {
-        std::time_t now = std::time(nullptr);
-        std::tm* localTime = std::localtime(&now);
-
-        std::ostringstream timestampStream;
-        timestampStream << 1900 + localTime->tm_year << "-"
-                        << 1 + localTime->tm_mon << "-" << localTime->tm_mday
-                        << " " << 1 + localTime->tm_hour << ":"
-                        << 1 + localTime->tm_min << ":"
-                        << 1 + localTime->tm_sec;
-
-        return timestampStream.str();
-    }
+    std::string filename;
 };
 
 class Bloom {
@@ -122,8 +100,7 @@ class Bloom {
 };
 
 class Sstable {
-  private:
-    std::string file_path;
+    std::string filename;
     Bloom bloom;
     std::map<std::string, std::streampos> index;
 
@@ -143,12 +120,13 @@ class Sstable {
     }
 
   public:
-    explicit Sstable(std::map<std::string, std::string>&& db) noexcept
+    explicit Sstable(const string& filename,
+                     std::map<std::string, std::string>&& db) noexcept
         : bloom(db.size(), 0.01) { // Initialize BloomFilter with 1% FPR
         try {
             // Create a new file
-            file_path = "sstable.dat";
-            std::ofstream file(file_path, std::ios::binary);
+            // filename = "sstable.dat";
+            std::ofstream file(filename, std::ios::binary);
             if (!file.is_open()) {
                 throw std::runtime_error("Failed to create SSTable file.");
             }
@@ -185,8 +163,8 @@ class Sstable {
 
     explicit Sstable(const std::string& path) noexcept
         : bloom(0, 0.01) { // Placeholder BloomFilter initialization
-        file_path = path;
-        std::ifstream file(file_path, std::ios::binary);
+        filename = path;
+        std::ifstream file(filename, std::ios::binary);
         if (!file.is_open()) {
             // throw std::runtime_error("Failed to open SSTable file.");
             assert(0);
@@ -213,13 +191,13 @@ class Sstable {
         return bloom.might_contain(key);
     }
 
-    std::string get_value(const std::string& key) {
+    std::optional<std::string> get_value(const std::string& key) {
         auto it = index.find(key);
         if (it == index.end()) {
             return ""; // Key not found
         }
 
-        std::ifstream file(file_path, std::ios::binary);
+        std::ifstream file(filename, std::ios::binary);
         if (!file.is_open()) {
             throw std::runtime_error(
                 "Failed to open SSTable file for reading.");
@@ -244,10 +222,19 @@ class Memtable {
         size += k.size() + v.size();
     }
 
+    optional<string> get(const string& k) {
+        if (db.count(k)) {
+            return db[k];
+        }
+        return {};
+    }
+
     uint64_t get_size() const { return size; }
 
-    std::unique_ptr<Sstable> flush() {
-        return std::make_unique<Sstable>(std::move(db));
+    std::unique_ptr<Sstable> flush(const string& name) {
+        auto sstable = std::make_unique<Sstable>(name, std::move(db));
+        db.clear();
+        return sstable;
     }
 };
 
@@ -255,11 +242,59 @@ struct Node {
 
     CommitLog log;
 
-    void flush() { auto sstable = memtable.flush(); }
+    void flush() {}
+
+    deque<unique_ptr<Sstable>> q;
+
+    int sstable_index;
+
+    void memtable_flush() {
+
+        /* flush */
+        if (memtable.get_size() >= MEMTABLE_FLUSH_SIZE) {
+
+            /* flush memtable */
+            q.push_front(memtable.flush(string("sstable_") +
+                                        to_string(sstable_index++)));
+
+            /* trim log */
+            log.clear();
+        }
+    }
+
+    void sstable_compact() {
+
+        /* compact sstable */
+        if (q.size() >= 2) {
+            auto older = move(q.back());
+            q.pop_back();
+
+            auto newer = move(q.back());
+            q.pop_back();
+        }
+    }
 
   public:
     Memtable memtable;
     Node() : log("clog.txt") {}
+
+    optional<std::string> read(const std::string& k) {
+        /* check memtable */
+        if (auto v = memtable.get(k)) {
+            return v;
+        }
+
+        /* check sstable */
+        for (auto& ss : q) {
+            if (ss->likely_contains_key(k)) {
+                if (auto v = ss->get_value(k)) {
+                    /* value exists */
+                    return v;
+                }
+            }
+        }
+        return {};
+    }
 
     void write(const std::string& k, const std::string& v) {
 
@@ -271,9 +306,10 @@ struct Node {
     }
 
     void heartbeat() {
-        if (memtable.get_size() >= MEMTABLE_FLUSH_SIZE_MB) {
-            flush();
-        }
+
+        memtable_flush();
+
+        sstable_compact();
     }
 };
 
@@ -298,12 +334,18 @@ int main() {
     // Measure the time taken to append 1GB worth of data
     auto startTime = std::chrono::high_resolution_clock::now();
 
-    int i = 0;
-    while (true) {
-        node.write(key + std::to_string(i++), value);
-        if (node.memtable.get_size() >= 1 * GB) {
-            break;
+    /*
+        int i = 0;
+        while (true) {
+            node.write(key + std::to_string(i++), value);
+            if (node.memtable.get_size() >= 3 * KB) {
+                break;
+            }
         }
+        */
+
+    for (auto i = 0; i < 32; ++i) {
+        node.write(to_string(i), to_string(i));
     }
 
     auto endTime = std::chrono::high_resolution_clock::now();
