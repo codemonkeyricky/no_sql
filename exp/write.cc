@@ -103,7 +103,6 @@ class Bloom {
 class Sstable {
     std::string filename;
     Bloom bloom;
-    std::map<std::string, std::streampos> index;
 
     std::string serialize(Bloom& data) {
         std::ostringstream oss;
@@ -121,11 +120,11 @@ class Sstable {
     }
 
   public:
-    explicit Sstable(const string& filename,
+    /* create sstable based on memtable */
+    explicit Sstable(const std::string& filename,
                      std::map<std::string, std::string>&& db) noexcept
         // Initialize BloomFilter with 1% FPR
-        : bloom(db.size(), 0.01), filename(filename)
-    {
+        : bloom(db.size(), 0.01), filename(filename) {
         try {
             // Create a new file
             std::ofstream file(filename, std::ios::binary);
@@ -133,24 +132,21 @@ class Sstable {
                 throw std::runtime_error("Failed to create SSTable file.");
             }
 
-            // Write Bloom filter
-            for (const auto& [key, value] : db) {
-                bloom.add(key);
-            }
-            // Placeholder for Bloom filter serialization (implement if needed)
-            file.write("BLOOMFILTERPLACEHOLDER", 24);
+            // Serialize and write Bloom filter
+            std::string serialized_bloom = serialize(bloom);
+            file.write(serialized_bloom.c_str(), serialized_bloom.size());
 
-            // auto s = serialize(bloom);
-            // file.write(s.c_str(), s.size());
-
-            // Write data and index sections directly from db
+            // Write data and store the position for the index
+            std::vector<std::pair<std::string, std::streampos>> index;
             for (const auto& [key, value] : db) {
-                index[key] = file.tellp();
+                index.push_back(
+                    {key, file.tellp()}); // Save the offset of the current
+                                          // position in the file
                 file.write(value.c_str(), value.size());
                 file.put('\0'); // Null-terminate each value
             }
 
-            // Write index section at the end
+            // Write index section at the end of the file
             for (const auto& [key, pos] : index) {
                 file.write(key.c_str(), key.size());
                 file.put('\0'); // Null-terminate the key
@@ -168,16 +164,18 @@ class Sstable {
         filename = path;
         std::ifstream file(filename, std::ios::binary);
         if (!file.is_open()) {
-            // throw std::runtime_error("Failed to open SSTable file.");
-            assert(0);
+            assert(0); // Error handling
         }
 
-        // Load Bloom filter (placeholder)
-        char bloom_filter_placeholder[24];
-        file.read(bloom_filter_placeholder, 24);
+        // Load and deserialize Bloom filter
+        std::string bloom_data;
+        std::getline(file, bloom_data,
+                     '\0'); // Read the serialized Bloom filter data
+        bloom = deserialize(bloom_data);
 
         // Load index section (assume it's at the end)
         file.seekg(-1, std::ios::end); // Simplified for demo purposes
+        std::map<std::string, std::streampos> index;
         while (file.tellg() > 0) {
             std::string key;
             std::getline(file, key, '\0');
@@ -186,6 +184,8 @@ class Sstable {
             index[key] = pos;
         }
 
+        // Store the index map into the class as needed for any future lookup
+        // (optional)
         file.close();
     }
 
@@ -194,17 +194,32 @@ class Sstable {
     }
 
     std::optional<std::string> get_value(const std::string& key) {
-        auto it = index.find(key);
-        if (it == index.end()) {
-            return ""; // Key not found
-        }
-
+        // Open the file to read the value directly using the key's offset
         std::ifstream file(filename, std::ios::binary);
         if (!file.is_open()) {
             throw std::runtime_error(
                 "Failed to open SSTable file for reading.");
         }
 
+        // Locate the index by reading the index section from the end of the
+        // file
+        file.seekg(-1, std::ios::end);
+        std::map<std::string, std::streampos> index;
+        while (file.tellg() > 0) {
+            std::string idx_key;
+            std::getline(file, idx_key, '\0');
+            std::streampos pos;
+            file.read(reinterpret_cast<char*>(&pos), sizeof(pos));
+            index[idx_key] = pos;
+        }
+
+        // Look for the key in the index
+        auto it = index.find(key);
+        if (it == index.end()) {
+            return {}; // Key not found
+        }
+
+        // Seek to the position of the value in the file
         file.seekg(it->second);
         std::string value;
         std::getline(file, value, '\0');
