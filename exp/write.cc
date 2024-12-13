@@ -90,6 +90,7 @@ class Bloom {
                 return false;
             }
         }
+        return true;
     }
 
     template <class Archive>
@@ -122,10 +123,11 @@ class Sstable {
   public:
     explicit Sstable(const string& filename,
                      std::map<std::string, std::string>&& db) noexcept
-        : bloom(db.size(), 0.01) { // Initialize BloomFilter with 1% FPR
+        // Initialize BloomFilter with 1% FPR
+        : bloom(db.size(), 0.01), filename(filename)
+    {
         try {
             // Create a new file
-            // filename = "sstable.dat";
             std::ofstream file(filename, std::ios::binary);
             if (!file.is_open()) {
                 throw std::runtime_error("Failed to create SSTable file.");
@@ -242,7 +244,7 @@ struct Node {
 
     CommitLog log;
 
-    void flush() {}
+    // void flush() {}
 
     deque<unique_ptr<Sstable>> q;
 
@@ -251,15 +253,12 @@ struct Node {
     void memtable_flush() {
 
         /* flush */
-        if (memtable.get_size() >= MEMTABLE_FLUSH_SIZE) {
+        /* flush memtable */
+        q.push_front(
+            memtable.flush(string("sstable_") + to_string(sstable_index++)));
 
-            /* flush memtable */
-            q.push_front(memtable.flush(string("sstable_") +
-                                        to_string(sstable_index++)));
-
-            /* trim log */
-            log.clear();
-        }
+        /* trim log */
+        log.clear();
     }
 
     void sstable_compact() {
@@ -307,7 +306,9 @@ struct Node {
 
     void heartbeat() {
 
-        memtable_flush();
+        if (memtable.get_size() >= MEMTABLE_FLUSH_SIZE) {
+            memtable_flush();
+        }
 
         sstable_compact();
     }
@@ -348,12 +349,14 @@ int main() {
         node.write(to_string(i), to_string(i));
     }
 
+    cout << *node.read("0") << endl;
+    node.memtable_flush();
+    cout << *node.read("0") << endl;
+
     auto endTime = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = endTime - startTime;
 
     std::cout << "append to commit log: " << duration.count() << " seconds\n";
-
-    node.flush();
 
     return 0;
 }
