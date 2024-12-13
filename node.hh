@@ -602,6 +602,18 @@ class Node final {
         volatile int dummy = 0;
     }
 
+    boost::cobalt::task<void> write_local(const std::string& key,
+                                          const std::string& value) {
+
+        /* append to commit log */
+
+        /* update memtable */
+
+        /* flush to sstable if required */
+        if (db.size() >= 128) {
+        }
+    }
+
     boost::cobalt::task<void> write(const std::string& key,
                                     const std::string& value,
                                     bool coordinator = true) {
