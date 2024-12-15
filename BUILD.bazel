@@ -70,6 +70,9 @@ cc_test(
         "ut.cc",
         "compile_ut.hh",
         "node/node.hh",
+        "node/sstable.hh",
+        "node/log.hh",
+        "node/bloom.hh",
         "node/node.cc",
         "directory.hh",
         "cluster.hh"

@@ -30,6 +30,10 @@
 #include <boost/serialization/set.hpp>
 #include <boost/serialization/vector.hpp>
 
+#include "node/bloom.hh"
+#include "node/log.hh"
+#include "node/sstable.hh"
+
 using key = std::string;
 using value = std::string;
 using hash = uint64_t;
