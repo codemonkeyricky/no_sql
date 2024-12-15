@@ -155,38 +155,37 @@ class Sstable {
         return index;
     }
 
+    void create_index_db(
+        std::vector<std::pair<std::string, std::streampos>>& index) {
+        std::ofstream file_index(filename + "_index.db",
+                                 std::ios::binary | std::ofstream::trunc);
+
+        // Write index section at the end of the file
+        for (const auto& [key, pos] : index) {
+            file_index.write(key.c_str(), key.size());
+            file_index.put('\0'); // Null-terminate the key
+            file_index.write(reinterpret_cast<const char*>(&pos), sizeof(pos));
+            // file_index.put('\0'); // Null-terminate the key
+        }
+
+        file_index.close();
+    }
+
   public:
     /* create sstable based on memtable */
     explicit Sstable(const std::string& filename,
                      std::map<std::string, std::string>&& db) noexcept
         // Initialize BloomFilter with 1% FPR
         : bloom(db.size(), 0.01), filename(filename) {
-        try {
 
-            /* create bloom.db */
-            create_bloom_db(db);
+        /* create bloom.db */
+        create_bloom_db(db);
 
-            /* create data.db */
-            auto index = create_data_db(db);
+        /* create data.db */
+        auto index = create_data_db(db);
 
-            /* create index.db */
-
-            std::ofstream file_index(filename + "_index.db",
-                                     std::ios::binary | std::ofstream::trunc);
-
-            // Write index section at the end of the file
-            for (const auto& [key, pos] : index) {
-                file_index.write(key.c_str(), key.size());
-                file_index.put('\0'); // Null-terminate the key
-                file_index.write(reinterpret_cast<const char*>(&pos),
-                                 sizeof(pos));
-                // file_index.put('\0'); // Null-terminate the key
-            }
-
-            file_index.close();
-        } catch (const std::exception& e) {
-            std::cerr << "Error creating SSTable: " << e.what() << std::endl;
-        }
+        /* create index.db */
+        create_index_db(index);
     }
 
     explicit Sstable(const std::string& path) noexcept
@@ -223,7 +222,7 @@ class Sstable {
         file.close();
     }
 
-    bool likely_contains_key(const std::string& key) {
+    bool likely_contain(const std::string& key) {
         return bloom.likely_contain(key);
     }
 
@@ -344,7 +343,7 @@ struct Node {
 
         /* check sstable */
         for (auto& ss : q) {
-            if (ss->likely_contains_key(k)) {
+            if (ss->likely_contain(k)) {
                 if (auto v = ss->get_value(k)) {
                     /* value exists */
                     return v;
