@@ -48,6 +48,7 @@ cc_test(
         "compile_ut.hh",
         "node/node.hh",
         "node/node.cc",
+        "node/node_rx.cc",
         "directory.hh",
         "cluster.hh"
     ], 
@@ -74,6 +75,7 @@ cc_test(
         "node/log.hh",
         "node/bloom.hh",
         "node/node.cc",
+        "node/node_rx.cc",
         "directory.hh",
         "cluster.hh"
     ], 

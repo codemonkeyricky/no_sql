@@ -382,46 +382,7 @@ class Node final {
 
     boost::cobalt::task<void> write(const std::string& key,
                                     const std::string& value,
-                                    bool coordinator = true) {
-
-        auto key_hash =
-            static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
-
-        if (!coordinator) {
-            /* force write */
-            ++stats.write;
-            db[key_hash] = {key, value};
-            co_return;
-        }
-
-        LookupEntry target = {key_hash, 0, 0};
-        auto it = lookup.lower_bound(target);
-        auto copy = lookup;
-        std::vector<uint64_t> ids;
-        int rf = replication_factor;
-        while (rf-- > 0) {
-            if (it == lookup.end())
-                it = lookup.begin();
-            ids.push_back((*it)[2]);
-            ++it;
-        }
-
-        /* walk the ring until we find a working node */
-        for (auto id : ids) {
-
-            if (id == this->id) {
-                ++stats.write;
-                db[key_hash] = {key, value};
-            } else {
-                ++stats.write_fwd;
-                co_await write_remote(nodehash_lookup[id], key, value);
-            }
-        }
-
-        co_return;
-
-        /* not local - forward request */
-    }
+                                    bool coordinator = true);
 
     boost::cobalt::task<void> heartbeat() {
 
@@ -501,41 +462,10 @@ class Node final {
     }
 
     boost::cobalt::task<std::map<hash, std::pair<key, value>>>
-    stream_from_remote(const std::string& peer, const hash i, const hash j) {
+    stream_from_remote(const std::string& peer, const hash i, const hash j);
 
-        // std::cout << self << ":" << "stream_remote() invoked!" <<
-        // std::endl;
 
-        auto io = co_await boost::asio::this_coro::executor;
-
-        boost::asio::ip::tcp::resolver resolver(io);
-        boost::asio::ip::tcp::socket socket(io);
-
-        auto p = peer.find(":");
-        auto addr = peer.substr(0, p);
-        auto port = peer.substr(p + 1);
-
-        auto ep = resolver.resolve(addr, port);
-
-        /* Connect */
-        boost::asio::async_connect(
-            socket, ep,
-            [&socket](const boost::system::error_code& error,
-                      const boost::asio::ip::tcp::endpoint&) {});
-
-        std::string req = "s:" + std::to_string(i) + "-" + std::to_string(j);
-        co_await boost::asio::async_write(
-            socket, boost::asio::buffer(req.c_str(), req.size()),
-            boost::cobalt::use_task);
-
-        /* read results */
-        char payload[1024] = {};
-        auto n = co_await socket.async_read_some(boost::asio::buffer(payload),
-                                                 boost::cobalt::use_task);
-
-        co_return deserialize<std::map<hash, std::pair<key, value>>>(
-            std::string(payload + 3, n - 3));
-    }
+    // boost::cobalt::task<void> rx_process(boost::asio::ip::tcp::socket socket);
 
     boost::cobalt::task<void> rx_process(boost::asio::ip::tcp::socket socket) {
 
