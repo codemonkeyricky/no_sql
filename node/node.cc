@@ -351,3 +351,131 @@ Node::read_remote(std::string& peer, std::string& key) {
         co_return {e.code(), ""};
     }
 }
+
+boost::cobalt::task<std::string> Node::read(std::string& key) {
+
+    auto key_hash =
+        static_cast<uint64_t>(std::hash<std::string>{}(key)) % p.getRange();
+
+    LookupEntry target = {key_hash, 0, 0};
+    auto it = lookup.lower_bound(target);
+
+    std::vector<uint64_t> ids;
+    int rf = replication_factor;
+    while (rf-- > 0) {
+        if (it == lookup.end())
+            it = lookup.begin();
+        ids.push_back((*it)[2]);
+        ++it;
+    }
+
+    /* walk the ring until we find a working node */
+    int k = 0;
+    while (k < ids.size()) {
+
+        /* parse */
+        auto id = ids[k++]; /* note id shadows this->id */
+        if (id == this->id) {
+            std::cout << "read (local) " << key << std::endl;
+            if (key == "k3") {
+                volatile int dummy = 0;
+            }
+            /* local */
+            ++stats.read;
+            if (db.count(key_hash)) {
+                /* exists */
+                co_return db[key_hash].second;
+            }
+            assert(0);
+        } else {
+            std::cout << "read (remote) " << key << std::endl;
+            /* forward to remote if alive */
+            ++stats.read_fwd;
+
+            auto [ec, rv] = co_await read_remote(nodehash_lookup[id], key);
+            if (ec == boost::system::errc::success) {
+                co_return rv;
+            }
+        }
+
+        ++it;
+    }
+    assert(0);
+    co_return "";
+}
+
+/* stream key range (i-j] to peer */
+boost::cobalt::task<size_t> Node::stream_to_remote(const std::string& replica,
+                                                   const hash i,
+                                                   const hash j) const {
+
+    auto cnt = 0;
+    try {
+
+        auto it = db.lower_bound(i);
+        while (it != db.end() && it->first < j) {
+            co_await write_remote(replica, it->second.first, it->second.second);
+            ++it;
+            ++cnt;
+        }
+
+        std::cerr << "stream_to_remote(): " << replica << " - records = " << cnt
+                  << std::endl;
+
+    } catch (const std::exception& e) {
+        std::cerr << "Connection error: " << e.what() << std::endl;
+        assert(0);
+    }
+
+    co_return cnt;
+}
+
+boost::cobalt::task<void> Node::write_remote(const std::string& peer_addr,
+                                             const std::string& key,
+                                             const std::string& value) const {
+
+    // std::cout << self << ":" << "write_remote() invoked!" <<
+    // std::endl;
+
+    auto io = co_await boost::asio::this_coro::executor;
+
+    const auto p = peer_addr.find(":");
+    const auto addr = peer_addr.substr(0, p);
+    const auto port = peer_addr.substr(p + 1);
+
+    boost::asio::ip::tcp::resolver resolver(io);
+    boost::asio::ip::tcp::socket socket(io);
+    auto ep = resolver.resolve(addr, port);
+
+    try {
+
+        boost::asio::async_connect(
+            socket, ep,
+            [&socket](const boost::system::error_code& error,
+                      const boost::asio::ip::tcp::endpoint&) {});
+
+        // std::cout << self << ":" << "write_remote(): writing to "
+        //           << peer_addr << std::endl;
+
+        const auto payload = "wf:" + key + "=" + value;
+        co_await boost::asio::async_write(
+            socket, boost::asio::buffer(payload, payload.size()),
+            boost::cobalt::use_task);
+
+        // std::cout << self << ":" << "write_remote(): waiting for
+        // ack... "
+        //           << std::endl;
+
+        char rx[1024] = {};
+        auto n = co_await socket.async_read_some(boost::asio::buffer(rx),
+                                                 boost::cobalt::use_task);
+
+        // std::cout << self << ":" << "write_remote(): ack received! "
+        //           << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Connection error: " << e.what() << std::endl;
+        assert(0);
+    }
+
+    volatile int dummy = 0;
+}
