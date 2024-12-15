@@ -174,26 +174,7 @@ class Node final {
     }
 
   public:
-    Node(node_addr self, node_addr seed = "", int vnode = 3, int rf = 3)
-        : self(self), replication_factor(rf) {
-
-        auto seedhash = static_cast<uint64_t>(std::hash<std::string>{}(seed));
-        nodehash_lookup[seedhash] = seed;
-        if (seed != "") {
-            /* insert seed unknown state, updated during gossip */
-            local_map.nodes[seed].timestamp = 0;
-        }
-
-        auto selfhash = this->id =
-            static_cast<uint64_t>(std::hash<std::string>{}(self));
-        nodehash_lookup[selfhash] = self;
-        local_map.nodes[self].timestamp = current_time_ms();
-        local_map.nodes[self].status = NodeMap::Node::Joining;
-        for (auto i = 0; i < vnode; ++i) {
-            /* token value may dup... but should fail gracefully */
-            local_map.nodes[self].tokens.insert(p.getToken());
-        }
-    }
+    Node(node_addr self, node_addr seed = "", int vnode = 3, int rf = 3);
 
     Node(const Node&) = delete; /* cannot be copied */
     Node(Node&&) = delete;
@@ -212,42 +193,11 @@ class Node final {
         return rv;
     }
 
-    template <typename T> std::string serialize(T&& data) {
-        std::ostringstream oss;
-        boost::archive::text_oarchive oa(oss);
-        oa << data;
-        return oss.str();
-    }
+    template <typename T> std::string serialize(T&& data);
 
-    template <typename T, typename StringType>
-    T deserialize(StringType&& data) {
-        T rv;
-        std::istringstream iss(data);
-        boost::archive::text_iarchive ia(iss);
-        ia >> rv;
-        return std::move(rv);
-    }
+    template <typename T, typename StringType> T deserialize(StringType&& data);
 
-    void gossip_rx(std::string& gossip) {
-
-        // std::cout << self << ":" << "gossip invoked!" << std::endl;
-
-        /* fetch remote_map */
-        auto remote_map = deserialize<NodeMap>(gossip);
-
-        /* update local_map */
-        local_map = remote_map = remote_map + local_map;
-        update_lookup();
-
-        /* communicated retired token in next gossip round */
-        retire_token();
-
-        /* serialize local_map */
-        gossip = serialize(local_map);
-
-        /* received gossip */
-        ++stats.gossip_rx;
-    }
+    void gossip_rx(std::string& gossip);
 
     boost::cobalt::task<void> gossip_tx() {
 
