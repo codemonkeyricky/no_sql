@@ -230,6 +230,15 @@ boost::cobalt::task<void> Node::gossip_tx() {
     }
 }
 
+void Node::write_local(const array<string, 2>& kv) {
+
+    /* append to log */
+    log.append(k, v);
+
+    /* update memtable */
+    memtable.insert(k, v);
+}
+
 boost::cobalt::task<void> Node::write(const std::string& key,
                                       const std::string& value,
                                       bool coordinator) {
@@ -240,7 +249,7 @@ boost::cobalt::task<void> Node::write(const std::string& key,
     if (!coordinator) {
         /* force write */
         ++stats.write;
-        db[key_hash] = {key, value};
+        write_local({key, value});
         co_return;
     }
 
@@ -261,7 +270,7 @@ boost::cobalt::task<void> Node::write(const std::string& key,
 
         if (id == this->id) {
             ++stats.write;
-            db[key_hash] = {key, value};
+            write_local({key, value});
         } else {
             ++stats.write_fwd;
             co_await write_remote(nodehash_lookup[id], key, value);
