@@ -84,7 +84,7 @@ class Bloom {
         }
     }
 
-    bool might_contain(const std::string& key) const {
+    bool likely_contain(const std::string& key) const {
         for (size_t i = 0; i < hash_count; ++i) {
             if (!bit_array[hash(key, i)]) {
                 return false;
@@ -119,6 +119,42 @@ class Sstable {
         return std::move(rv);
     }
 
+    void create_bloom_db(std::map<std::string, std::string>& db) {
+
+        // Write Bloom filter
+        for (const auto& [key, value] : db) {
+            bloom.add(key);
+        }
+
+        std::ofstream file_bloom(filename + "_bloom.db",
+                                 std::ios::binary | std::ofstream::trunc);
+        assert(file_bloom.is_open());
+
+        std::string serialized_bloom = serialize(bloom);
+        file_bloom.write(serialized_bloom.c_str(), serialized_bloom.size());
+        file_bloom.close();
+    }
+
+    std::vector<std::pair<std::string, std::streampos>>
+    create_data_db(std::map<std::string, std::string>& db) {
+
+        std::ofstream file_data(filename + "_data.db",
+                                std::ios::binary | std::ofstream::trunc);
+
+        std::vector<std::pair<std::string, std::streampos>> index;
+        for (const auto& [key, value] : db) {
+            index.push_back(
+                {key, file_data.tellp()}); // Save the offset of the
+                                           // current position in the file
+            file_data.write(value.c_str(), value.size());
+            file_data.put('\0'); // Null-terminate each value
+        }
+
+        file_data.close();
+
+        return index;
+    }
+
   public:
     /* create sstable based on memtable */
     explicit Sstable(const std::string& filename,
@@ -128,35 +164,10 @@ class Sstable {
         try {
 
             /* create bloom.db */
-
-            // Write Bloom filter
-            for (const auto& [key, value] : db) {
-                bloom.add(key);
-            }
-
-            std::ofstream file_bloom(filename + "_bloom.db",
-                                     std::ios::binary | std::ofstream::trunc);
-            assert(file_bloom.is_open());
-
-            std::string serialized_bloom = serialize(bloom);
-            file_bloom.write(serialized_bloom.c_str(), serialized_bloom.size());
-            file_bloom.close();
+            create_bloom_db(db);
 
             /* create data.db */
-
-            std::ofstream file_data(filename + "_data.db",
-                                    std::ios::binary | std::ofstream::trunc);
-
-            std::vector<std::pair<std::string, std::streampos>> index;
-            for (const auto& [key, value] : db) {
-                index.push_back(
-                    {key, file_data.tellp()}); // Save the offset of the
-                                                // current position in the file
-                file_data.write(value.c_str(), value.size());
-                file_data.put('\0'); // Null-terminate each value
-            }
-
-            file_data.close();
+            auto index = create_data_db(db);
 
             /* create index.db */
 
@@ -213,7 +224,7 @@ class Sstable {
     }
 
     bool likely_contains_key(const std::string& key) {
-        return bloom.might_contain(key);
+        return bloom.likely_contain(key);
     }
 
     std::optional<std::string> get_value(const std::string& key) {
@@ -383,7 +394,7 @@ int main() {
         bloom.add(to_string(i));
     }
     for (auto i = 0; i < 10; ++i) {
-        cout << bloom.might_contain(to_string(i)) << endl;
+        cout << bloom.likely_contain(to_string(i)) << endl;
     }
 
     Node node;
@@ -401,7 +412,7 @@ int main() {
         }
         */
 
-    for (auto i = 0; i < 8; ++i) {
+    for (auto i = 0; i < 500000; ++i) {
         node.write(to_string(i), to_string(i));
     }
 
