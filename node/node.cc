@@ -479,3 +479,45 @@ boost::cobalt::task<void> Node::write_remote(const std::string& peer_addr,
 
     volatile int dummy = 0;
 }
+
+boost::cobalt::task<size_t> Node::anti_entropy() {
+
+    const auto tokens = local_map.nodes[self].tokens;
+    size_t cnt = 0;
+    for (auto& token : tokens) {
+        std::array<uint64_t, 3> target = {token};
+
+        /* determine replicas */
+        std::vector<std::string> replicas;
+        auto it = lookup.lower_bound(target);
+        auto rf = replication_factor - 1;
+        while (rf-- > 0) {
+            it = next_it(lookup, it);
+            const auto [skip, skip2, id_hash] = *it;
+            replicas.push_back(nodehash_lookup[id_hash]);
+        }
+
+        /* find range to stream */
+        it = lookup.lower_bound(target);
+        it = prev_it(lookup, it);
+        auto [ptoken, skip, skip1] = *it;
+
+        /* sync range is inclusive of i and exclusive of j*/
+        auto i = ptoken + 1;
+        auto j = token + 1;
+
+        for (auto& replica : replicas) {
+            if (i < j) {
+                cnt += co_await sync_range(replica, i, j);
+            } else {
+                cnt += co_await sync_range(replica, 0, j);
+                cnt += co_await sync_range(replica, i,
+                                           Partitioner::instance().getRange());
+            }
+        }
+
+        std::cout << "anti_entropy(): sync = " << cnt << std::endl;
+    }
+
+    co_return cnt;
+}
