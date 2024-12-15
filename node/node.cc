@@ -81,22 +81,6 @@ Node::Node(node_addr self, node_addr seed, int vnode, int rf)
     }
 }
 
-template <typename T> std::string Node::serialize(T&& data) {
-    std::ostringstream oss;
-    boost::archive::text_oarchive oa(oss);
-    oa << data;
-    return oss.str();
-}
-
-template <typename T, typename StringType>
-T Node::deserialize(StringType&& data) {
-    T rv;
-    std::istringstream iss(data);
-    boost::archive::text_iarchive ia(iss);
-    ia >> rv;
-    return std::move(rv);
-}
-
 void Node::gossip_rx(std::string& gossip) {
 
     // std::cout << self << ":" << "gossip invoked!" << std::endl;
