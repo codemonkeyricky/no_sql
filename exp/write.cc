@@ -130,7 +130,14 @@ class Sstable {
                                  std::ios::binary | std::ofstream::trunc);
         assert(file_bloom.is_open());
 
+        auto i = std::chrono::high_resolution_clock::now();
         std::string serialized_bloom = serialize(bloom);
+        auto j = std::chrono::high_resolution_clock::now();
+
+        std::chrono::duration<double> duration = j - i;
+        std::cout << "bloom filter serialize time: " << duration.count()
+                  << " seconds\n";
+
         file_bloom.write(serialized_bloom.c_str(), serialized_bloom.size());
         file_bloom.close();
     }

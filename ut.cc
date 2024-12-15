@@ -1,6 +1,6 @@
 
 
-#include "node.hh"
+#include "node/node.hh"
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/experimental/parallel_group.hpp>
 #include <boost/system/detail/errc.hpp>
@@ -181,7 +181,7 @@ int main() {
                 std::size_t n = co_await socket->async_read_some(
                     boost::asio::buffer(rx_payload), boost::cobalt::use_task);
 
-                    co_return;
+                co_return;
             };
 
             auto cluster_ready =
@@ -290,7 +290,7 @@ int main() {
                 co_return;
             };
 
-            constexpr int COUNT = 32;
+            constexpr int COUNT = 8 * 1024;
 
             auto ctrl = co_await async_connect("127.0.0.1", "5001");
             co_await wait_for_cluster_ready(ctrl);

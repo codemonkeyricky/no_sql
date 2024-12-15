@@ -46,7 +46,8 @@ cc_test(
     srcs = [
         "ut_replica.cc",
         "compile_ut.hh",
-        "node.hh",
+        "node/node.hh",
+        "node/node.cc",
         "directory.hh",
         "cluster.hh"
     ], 
@@ -68,7 +69,8 @@ cc_test(
     srcs = [
         "ut.cc",
         "compile_ut.hh",
-        "node.hh",
+        "node/node.hh",
+        "node/node.cc",
         "directory.hh",
         "cluster.hh"
     ], 

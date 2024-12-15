@@ -1,6 +1,6 @@
 
 
-#include "node.hh"
+#include "node/node.hh"
 #include <boost/asio/cancellation_signal.hpp>
 #include <boost/asio/experimental/parallel_group.hpp>
 #include <chrono>
@@ -17,8 +17,6 @@
 
 #include <string>
 #include <utility>
-
-#include "node.hh"
 
 struct Cluster {
 
