@@ -286,7 +286,7 @@ auto cluster_runtime = []() {
             seed = addr_port;
         }
         /* node control plane */
-        boost::cobalt::spawn(io_context, n->node_listener(),
+        boost::cobalt::spawn(io_context, n->connection_dispatcher(),
                              boost::asio::detached);
     }
 

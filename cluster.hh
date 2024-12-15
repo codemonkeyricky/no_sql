@@ -64,7 +64,7 @@ struct Cluster {
                 auto& n = nodes[server] =
                     std::unique_ptr<Node>(new Node(server, seed));
 
-                boost::cobalt::spawn(io, n->node_listener(),
+                boost::cobalt::spawn(io, n->connection_dispatcher(),
                                      boost::asio::detached);
             }
 

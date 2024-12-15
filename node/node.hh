@@ -288,7 +288,7 @@ class Node final {
         co_return true;
     }
 
-    boost::cobalt::task<void> node_listener();
+    boost::cobalt::task<void> connection_dispatcher();
 
     const NodeMap& peers() const { return local_map; }
     const Lookup& get_lookup() const { return lookup; }

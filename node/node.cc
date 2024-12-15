@@ -522,7 +522,7 @@ boost::cobalt::task<size_t> Node::anti_entropy() {
     co_return cnt;
 }
 
-boost::cobalt::task<void> Node::node_listener() {
+boost::cobalt::task<void> Node::connection_dispatcher() {
 
     ++outstanding;
 
@@ -566,7 +566,7 @@ boost::cobalt::task<void> Node::node_listener() {
         }
         case 1:
             running = false;
-            // std::cout << self << ":" << "node_listener() -
+            // std::cout << self << ":" << "connection_dispatcher() -
             // cancelled!"
             //           << std::endl;
             --outstanding;
