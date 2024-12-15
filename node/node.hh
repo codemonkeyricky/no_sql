@@ -210,46 +210,7 @@ class Node final {
     boost::cobalt::task<void> gossip_tx();
 
     boost::cobalt::task<std::pair<boost::system::error_code, std::string>>
-    read_remote(std::string& peer, std::string& key) {
-
-        std::cout << self << ":" << "read_remote():" << peer << " - " << key
-                  << std::endl;
-
-        auto io = co_await boost::asio::this_coro::executor;
-
-        boost::asio::ip::tcp::resolver resolver(io);
-        boost::asio::ip::tcp::socket socket(io);
-
-        auto p = peer.find(":");
-        auto addr = peer.substr(0, p);
-        auto port = peer.substr(p + 1);
-
-        auto ep = resolver.resolve(addr, port);
-
-        try {
-            /* Connect */
-            boost::asio::async_connect(
-                socket, ep,
-                [&socket](const boost::system::error_code& error,
-                          const boost::asio::ip::tcp::endpoint&) {});
-
-            std::string req = "r:" + key;
-            co_await boost::asio::async_write(
-                socket, boost::asio::buffer(req.c_str(), req.size()),
-                boost::cobalt::use_task);
-
-            /* read results */
-            char payload[1024] = {};
-            std::size_t n = co_await socket.async_read_some(
-                boost::asio::buffer(payload), boost::cobalt::use_task);
-
-            std::string rv(payload + 3, n - 3);
-            co_return {{}, rv};
-        } catch (boost::system::system_error const& e) {
-            std::cout << "read error: " << e.what() << std::endl;
-            co_return {e.code(), ""};
-        }
-    }
+    read_remote(std::string& peer, std::string& key);
 
     boost::cobalt::task<std::string> read(std::string& key) {
 
