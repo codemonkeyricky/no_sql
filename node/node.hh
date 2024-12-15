@@ -288,60 +288,7 @@ class Node final {
         co_return true;
     }
 
-    boost::cobalt::task<void> node_listener() {
-
-        ++outstanding;
-
-        auto executor = co_await boost::cobalt::this_coro::executor;
-
-        auto p = get_addr().find(":");
-        auto addr = get_addr().substr(0, p);
-        auto port = get_addr().substr(p + 1);
-
-        cancel = std::shared_ptr<boost::asio::steady_timer>(
-            new boost::asio::steady_timer{
-                executor, std::chrono::steady_clock::duration::max()});
-
-        boost::asio::ip::tcp::acceptor acceptor(
-            executor, {boost::asio::ip::tcp::v4(), stoi(port)});
-        bool running = true;
-        while (running) {
-
-            assert(outstanding < 100);
-
-// auto socket =
-#if 0
-            auto socket =
-                co_await acceptor.async_accept(boost::cobalt::use_task);
-            std::cout << "New connection accepted from: "
-                      << socket.remote_endpoint() << "\n";
-
-            boost::cobalt::spawn(executor, rx_process(std::move(socket)),
-                                 boost::asio::detached);
-#else
-            boost::variant2::variant<boost::asio::ip::tcp::socket, bool> nx =
-                co_await boost::cobalt::race(
-                    acceptor.async_accept(boost::cobalt::use_task),
-                    Cancelled());
-            switch (nx.index()) {
-            case 0: {
-
-                auto& socket = boost::variant2::get<0>(nx);
-                boost::cobalt::spawn(executor, rx_process(std::move(socket)),
-                                     boost::asio::detached);
-                break;
-            }
-            case 1:
-                running = false;
-                // std::cout << self << ":" << "node_listener() -
-                // cancelled!"
-                //           << std::endl;
-                --outstanding;
-                co_return;
-            }
-#endif
-        }
-    }
+    boost::cobalt::task<void> node_listener();
 
     const NodeMap& peers() const { return local_map; }
     const Lookup& get_lookup() const { return lookup; }
