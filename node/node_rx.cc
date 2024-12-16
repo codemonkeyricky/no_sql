@@ -56,6 +56,7 @@ Node::rx_process(boost::asio::ip::tcp::socket socket) {
                     socket, boost::asio::buffer(resp.c_str(), resp.size()),
                     boost::cobalt::use_task);
             } else if (cmd == "s") {
+                /* get keys from i to j */
                 auto s = payload.substr(p + 1);
                 auto p = s.find("-");
                 auto i = stoll(s.substr(0, p)), j = stoll(s.substr(p + 1));

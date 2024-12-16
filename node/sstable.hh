@@ -1,3 +1,6 @@
+
+#pragma once
+
 #include <chrono>
 #include <cmath>
 #include <ctime>
@@ -15,6 +18,7 @@
 
 #include "node/bloom.hh"
 #include "node/log.hh"
+#include "node/partition.hh"
 
 class Sstable {
     std::string filename;
@@ -32,7 +36,7 @@ class Sstable {
         std::istringstream iss(data);
         boost::archive::text_iarchive ia(iss);
         ia >> rv;
-        return std::move(rv);
+        return rv;
     }
 
     void create_bloom_db(std::map<std::string, std::string>& db) {
@@ -94,6 +98,27 @@ class Sstable {
         file_index.close();
     }
 
+    std::map<std::string, std::streampos> load_index_db() const {
+
+        std::ifstream file_index(filename + "_index.db", std::ios::binary);
+        assert(file_index.is_open());
+
+        std::map<std::string, std::streampos> index;
+        file_index.seekg(0);
+        while (!file_index.eof()) {
+            std::string key;
+            std::getline(file_index, key, '\0');
+            if (key == "")
+                break;
+            std::streampos pos;
+            file_index.read(reinterpret_cast<char*>(&pos), sizeof(pos));
+            index[key] = pos;
+        }
+        file_index.close();
+
+        return index;
+    }
+
   public:
     /* not copyable*/
     Sstable(const Sstable&) = delete;
@@ -126,6 +151,32 @@ class Sstable {
 
     bool likely_contain(const std::string& key) {
         return bloom.likely_contain(key);
+    }
+
+    std::map<uint64_t, std::pair<std::string, std::string>>
+    get_value_all() const {
+
+        std::map<uint64_t, std::pair<std::string, std::string>> rv;
+
+        // Locate the index by reading the index section from the end of the
+        // file
+        auto index = load_index_db();
+
+        std::ifstream file_data(filename + "_data.db", std::ios::binary);
+        for (auto& [key, pos] : index) {
+
+            file_data.seekg(pos);
+            std::string value;
+            std::getline(file_data, value, '\0');
+
+            auto key_hash =
+                static_cast<uint64_t>(std::hash<std::string>{}(key)) %
+                Partitioner::instance().getRange();
+
+            rv[key_hash] = {key, value};
+        }
+
+        return rv;
     }
 
     std::optional<std::string> get_value(const std::string& key) {

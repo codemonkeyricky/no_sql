@@ -1,4 +1,5 @@
 #include "node/node.hh"
+#include <iterator>
 
 auto Node::update_lookup() -> void {
 
@@ -61,7 +62,7 @@ auto Node::retire_token() -> void {
 };
 
 Node::Node(node_addr self, node_addr seed, int vnode, int rf)
-    : self(self), replication_factor(rf) {
+    : self(self), replication_factor(rf), log(self + "_clog.txt") {
 
     auto seedhash = static_cast<uint64_t>(std::hash<std::string>{}(seed));
     nodehash_lookup[seedhash] = seed;
@@ -105,8 +106,17 @@ void Node::gossip_rx(std::string& gossip) {
 std::map<hash, std::pair<key, value>> Node::stream(hash i, hash j) {
 
     std::map<hash, std::pair<key, value>> rv;
-    for (auto it = db.lower_bound(i); it != db.end() && it->first < j; ++it) {
-        rv[it->first] = it->second;
+
+    /* traverse sstable in reverse order */
+    for (auto it = sstables.rbegin(); it != sstables.rend(); ++it) {
+        auto kv = (*it)->get_value_all();
+        rv.insert(kv.begin(), kv.end());
+    }
+
+    auto db = memtable.get_all();
+    for (auto& [k, v] : db) {
+        auto h = static_cast<uint64_t>(std::hash<std::string>{}(k));
+        rv[h] = {k, v};
     }
 
     return rv;
@@ -220,8 +230,11 @@ boost::cobalt::task<void> Node::gossip_tx() {
                 auto remote_db = co_await stream_from_remote(
                     nodehash_lookup[id], ptoken + 1, token);
 
+#if 0
                 /* insert into local db */
                 db.insert(remote_db.begin(), remote_db.end());
+#endif
+                assert(0);
             }
         }
 
@@ -230,7 +243,9 @@ boost::cobalt::task<void> Node::gossip_tx() {
     }
 }
 
-void Node::write_local(const array<string, 2>& kv) {
+void Node::write_local(const std::array<std::string, 2>& kv) {
+
+    auto& [k, v] = kv;
 
     /* append to log */
     log.append(k, v);
@@ -378,6 +393,7 @@ boost::cobalt::task<std::string> Node::read(std::string& key) {
         ++it;
     }
 
+#if 0
     /* walk the ring until we find a working node */
     int k = 0;
     while (k < ids.size()) {
@@ -409,6 +425,7 @@ boost::cobalt::task<std::string> Node::read(std::string& key) {
 
         ++it;
     }
+#endif
     assert(0);
     co_return "";
 }
@@ -418,6 +435,7 @@ boost::cobalt::task<size_t> Node::stream_to_remote(const std::string& replica,
                                                    const hash i,
                                                    const hash j) const {
 
+#if 0
     auto cnt = 0;
     try {
 
@@ -435,8 +453,10 @@ boost::cobalt::task<size_t> Node::stream_to_remote(const std::string& replica,
         std::cerr << "Connection error: " << e.what() << std::endl;
         assert(0);
     }
-
     co_return cnt;
+#endif
+    assert(0);
+    co_return 0;
 }
 
 boost::cobalt::task<void> Node::write_remote(const std::string& peer_addr,

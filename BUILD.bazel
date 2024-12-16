@@ -75,6 +75,8 @@ cc_test(
         "node/log.hh",
         "node/bloom.hh",
         "node/node.cc",
+        "node/memtable.hh",
+        "node/partition.hh",
         "node/node_rx.cc",
         "directory.hh",
         "cluster.hh"

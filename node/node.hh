@@ -3,9 +3,11 @@
 
 #include "directory.hh"
 #include <array>
+#include <deque>
 #include <functional>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <sys/types.h>
@@ -32,6 +34,8 @@
 
 #include "node/bloom.hh"
 #include "node/log.hh"
+#include "node/memtable.hh"
+#include "node/partition.hh"
 #include "node/sstable.hh"
 
 using key = std::string;
@@ -121,24 +125,6 @@ struct NodeMap {
     }
 };
 
-class Partitioner {
-
-    uint64_t range = 1e9 + 7;
-
-  public:
-    Partitioner() { srand(0); }
-    ~Partitioner() {}
-
-    static Partitioner& instance() {
-        static Partitioner p;
-        return p;
-    }
-
-    uint64_t getToken() const { return rand() % range; };
-
-    uint64_t getRange() const { return range; }
-};
-
 class Node final {
 
   public:
@@ -156,12 +142,15 @@ class Node final {
     bool anti_entropy_req = false;
 
   private:
+    CommitLog log;
+    Memtable memtable;
+    std::deque<std::unique_ptr<Sstable>> sstables;
     Partitioner& p = Partitioner::instance();
     Time& t = Time::instance();
 
     NodeMap local_map;
     Lookup lookup;
-    std::map<hash, std::pair<key, value>> db;
+    // std::map<hash, std::pair<key, value>> db;
     node_id id;
     Stats stats;
     HashLookup nodehash_lookup;
@@ -222,17 +211,7 @@ class Node final {
                                            const std::string& key,
                                            const std::string& value) const;
 
-    boost::cobalt::task<void> write_local(const std::string& key,
-                                          const std::string& value) {
-
-        /* append to commit log */
-
-        /* update memtable */
-
-        /* flush to sstable if required */
-        if (db.size() >= 128) {
-        }
-    }
+    void write_local(const std::array<std::string, 2>& kv);
 
     boost::cobalt::task<void> write(const std::string& key,
                                     const std::string& value,
@@ -413,7 +392,9 @@ class Node final {
 
     // Recursive compile-time hash function for keyspace
     hash get_range_hash(hash i, hash j) {
+        assert(0);
 
+#if 0
         auto ii = db.lower_bound(i);
         auto jj = db.lower_bound(j);
 
@@ -438,6 +419,7 @@ class Node final {
         auto r = get_range_hash(m, j);
 
         return static_cast<uint64_t>(std::hash<hash>{}(l + r));
+#endif
     }
 
     boost::cobalt::task<size_t> sync_range(const std::string& replica, hash i,
