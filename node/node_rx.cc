@@ -5,8 +5,6 @@ Node::rx_process(boost::asio::ip::tcp::socket socket) {
 
     // std::cout << self << ":" << "rx_process() spawned!" << std::endl;
 
-    ++outstanding;
-
     try {
         for (;;) {
             char data[1024] = {};
@@ -107,40 +105,6 @@ Node::rx_process(boost::asio::ip::tcp::socket socket) {
                 }
                 replacement += "}";
 
-                // {
-                //     string filename("web/ring_fmt.html");
-
-                //     // Open the file for reading
-                //     std::ifstream inFile(filename);
-                //     assert(inFile);
-
-                //     // Read the file content into a string
-                //     std::string fileContent(
-                //         (std::istreambuf_iterator<char>(inFile)),
-                //         std::istreambuf_iterator<char>());
-                //     inFile.close();
-
-                //     // Find and replace the target line with the
-                //     replacement string targetLine =
-                //     "LINE_TO_REPLACE";
-                //     // string replacement = "blah";
-                //     if (fileContent.find(targetLine) !=
-                //     std::string::npos) {
-                //         boost::algorithm::replace_all(fileContent,
-                //         targetLine,
-                //                                       replacement);
-                //     } else {
-                //         assert(0);
-                //     }
-
-                //     // Open the file for writing and overwrite the
-                //     content std::ofstream outFile("web/ring.html");
-                //     assert(outFile);
-
-                //     outFile << fileContent;
-                //     outFile.close();
-                // }
-
                 auto resp = "ring_ack:" + replacement;
                 co_await boost::asio::async_write(
                     socket, boost::asio::buffer(resp.c_str(), resp.size()),
@@ -179,8 +143,6 @@ Node::rx_process(boost::asio::ip::tcp::socket socket) {
     }
 
     // std::cout << self << ":" << "rx_process() end!" << std::endl;
-
-    --outstanding;
 
     co_return;
 }
