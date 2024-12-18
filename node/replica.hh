@@ -37,7 +37,7 @@ class Replica {
         Leader,
     };
 
-    /* Raft protocol */
+    /* Raft protocol requirement */
 
     struct PersistentState {
         int currentTerm = 0;
@@ -51,16 +51,21 @@ class Replica {
         int lastApplied = 0;
     };
 
+    struct FollowerState {
+        std::string addr;
+        int nextIndex;
+        int matchIndex;
+    };
+
     struct VolatileStateLeader {
-        std::vector<int> nextIndex;
-        std::vector<int> matchIndex;
+        std::vector<FollowerState> followers;
     };
 
     PersistentState pstate;
     VolatileState vstate;
     VolatileStateLeader vstate_leader;
 
-    /* internal */
+    /* implementation requirements */
 
     struct Implementation {
         State state = Follower;
@@ -163,11 +168,18 @@ class Replica {
     follower_rx_payload(boost::asio::ip::tcp::socket socket);
 
     boost::cobalt::task<void> apply_logs() {
-
         while (vstate.lastApplied < vstate.commitIndex) {
             /* TODO: execute the logs here */
         }
+
+        co_return;
     }
+
+    boost::cobalt::task<void> replicate_logs(
+        std::optional<std::reference_wrapper<std::array<std::string, 2>>> kv);
+
+    boost::cobalt::task<Replica::AppendEntryReply>
+    replicate_log(std::string addr, Replica::AppendEntryReq req);
 
     // boost::cobalt::task<void> heartbeat() {
 

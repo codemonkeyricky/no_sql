@@ -28,6 +28,7 @@ cc_test(
         "node/test/replica.cc",
         "node/replica.hh",
         "node/replica_follower.cc",
+        "node/replica_leader.cc",
     ],
     copts = [
         "-std=c++20",
@@ -67,6 +68,7 @@ cc_test(
         "node/node.cc",
         "node/node_rx.cc",
         "node/replica_follower.cc",
+        "node/replica_leader.cc",
         "directory.hh",
         "cluster.hh"
     ], 
