@@ -66,6 +66,7 @@ class Replica {
         State state = Follower;
         bool leader_keep_alive = false;
         int logIndex = 0;
+        int port = 0;
     };
 
     Implementation impl;
@@ -156,7 +157,9 @@ class Replica {
 
     AppendEntryReply follower_process_addEntryReq(const AppendEntryReq& entry);
 
-    boost::cobalt::task<void> follower_receiver();
+    boost::cobalt::task<void> follower_rx_conn();
+    boost::cobalt::task<void>
+    follower_rx_payload(boost::asio::ip::tcp::socket socket);
 
     // boost::cobalt::task<void> heartbeat() {
 
