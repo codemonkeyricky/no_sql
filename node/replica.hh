@@ -37,12 +37,38 @@ class Replica {
         Leader,
     };
 
-    /* default initialized */
+    /* Raft protocol */
 
-    State state = Follower;
-    bool leader_keep_alive = false;
-    int currentTerm = 0;
-    std::vector<std::string> group;
+    struct PersistentState {
+        int currentTerm = 0;
+        std::optional<int> votedFor = {};
+        std::vector<std::pair<int, std::array<std::string, 2>>>
+            logs; /* term / (key, value)*/
+    };
+
+    struct VolatileState {
+        int commitIndex = 0;
+        int lastApplied = 0;
+    };
+
+    struct VolatileStateLeader {
+        std::vector<int> nextIndex;
+        std::vector<int> matchIndex;
+    };
+
+    PersistentState pstate;
+    VolatileState vstate;
+    VolatileStateLeader vstate_leader;
+
+    /* internal */
+
+    struct Implementation {
+        State state = Follower;
+        bool leader_keep_alive = false;
+        int logIndex = 0;
+    };
+
+    Implementation impl;
 
     boost::cobalt::task<void> heartbeat_candidate() {
 
@@ -54,54 +80,54 @@ class Replica {
 
         auto io = co_await boost::asio::this_coro::executor;
 
-        for (auto peer_addr : group) {
+        // for (auto peer_addr : group) {
 
-            auto p = peer_addr.find(":");
-            auto addr = peer_addr.substr(0, p);
-            auto port = peer_addr.substr(p + 1);
+        //     auto p = peer_addr.find(":");
+        //     auto addr = peer_addr.substr(0, p);
+        //     auto port = peer_addr.substr(p + 1);
 
-            boost::asio::ip::tcp::resolver resolver(io);
-            boost::asio::ip::tcp::socket socket(io);
-            auto ep = resolver.resolve(addr, port);
+        //     boost::asio::ip::tcp::resolver resolver(io);
+        //     boost::asio::ip::tcp::socket socket(io);
+        //     auto ep = resolver.resolve(addr, port);
 
-            boost::system::error_code err_code;
+        //     boost::system::error_code err_code;
 
-            boost::asio::async_connect(
-                socket, ep,
-                [&socket, &err_code](const boost::system::error_code& error,
-                                     const boost::asio::ip::tcp::endpoint&) {
-                    err_code = error;
-                    // std::cout << "error = " << error << std::endl;
-                });
+        //     boost::asio::async_connect(
+        //         socket, ep,
+        //         [&socket, &err_code](const boost::system::error_code& error,
+        //                              const boost::asio::ip::tcp::endpoint&) {
+        //             err_code = error;
+        //             // std::cout << "error = " << error << std::endl;
+        //         });
 
-            std::string req =
-                "v:" + std::to_string(i) + "-" + std::to_string(j);
-            co_await boost::asio::async_write(
-                socket, boost::asio::buffer(req.c_str(), req.size()),
-                boost::cobalt::use_task);
+        //     std::string req =
+        //         "v:" + std::to_string(i) + "-" + std::to_string(j);
+        //     co_await boost::asio::async_write(
+        //         socket, boost::asio::buffer(req.c_str(), req.size()),
+        //         boost::cobalt::use_task);
 
-            /* read results */
-            char payload[1024] = {};
-            auto n = co_await socket.async_read_some(
-                boost::asio::buffer(payload), boost::cobalt::use_task);
-        }
+        //     /* read results */
+        //     char payload[1024] = {};
+        //     auto n = co_await socket.async_read_some(
+        //         boost::asio::buffer(payload), boost::cobalt::use_task);
+        // }
     }
 
     boost::cobalt::task<void> heartbeat_follower() {
 
-        auto io = co_await boost::asio::this_coro::executor;
+        // auto io = co_await boost::asio::this_coro::executor;
 
-        /* TODO */
+        // /* TODO */
 
-        if (!leader_keep_alive) {
-            state = Candidate;
+        // if (!leader_keep_alive) {
+        //     state = Candidate;
 
-            /* spawn a new coroutine to campaign for election */
-            boost::cobalt::spawn(io, candidate_campaign(),
-                                 boost::asio::detached);
-        }
+        //     /* spawn a new coroutine to campaign for election */
+        //     boost::cobalt::spawn(io, candidate_campaign(),
+        //                          boost::asio::detached);
+        // }
 
-        leader_keep_alive = -1;
+        // leader_keep_alive = -1;
 
         co_return;
     }
@@ -112,21 +138,37 @@ class Replica {
     }
 
   public:
+    struct AppendEntryReq {
+        int term;
+        std::string leaderId;
+        int prevLogIndex;
+        int prevLogTerm;
+        int leaderCommit;
+        std::optional<std::array<std::string, 2>> entry; /* key / value*/
+    };
+
+    struct AppendEntryReply {
+        int term;
+        bool success;
+    };
+
     Replica() {}
 
     boost::cobalt::task<void> heartbeat() {
 
-        switch (state) {
-        case Leader:
-            co_await heartbeat_leader();
-            break;
-        case Follower:
-            co_await heartbeat_follower();
-            break;
-        case Candidate:
-            co_await heartbeat_candidate();
-            break;
-        }
+        // switch (state) {
+        // case Leader:
+        //     co_await heartbeat_leader();
+        //     break;
+        // case Follower:
+        //     co_await heartbeat_follower();
+        //     break;
+        // case Candidate:
+        //     co_await heartbeat_candidate();
+        //     break;
+        // }
         co_return;
     }
+
+    AppendEntryReply process_addEntry(const AppendEntryReq& entry);
 };

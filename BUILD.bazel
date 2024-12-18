@@ -65,6 +65,7 @@ cc_test(
         "node/node.hh",
         "node/node.cc",
         "node/node_rx.cc",
+        "node/replica_follower.cc",
         "directory.hh",
         "cluster.hh"
     ], 
