@@ -4,6 +4,12 @@
 
 using namespace std;
 
+boost::cobalt::task<Replica::RequestVoteReply>
+Replica::candidate_request_vote() {
+
+    RequestVoteReply reply;
+}
+
 boost::cobalt::task<bool> Replica::candidate_campaign() {
 
     auto io = co_await boost::asio::this_coro::executor;
