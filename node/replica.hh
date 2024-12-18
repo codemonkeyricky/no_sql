@@ -159,6 +159,9 @@ class Replica {
     boost::cobalt::task<Replica::AppendEntryReply>
     replicate_log(std::string addr, Replica::AppendEntryReq req);
 
+    boost::cobalt::task<Replica::RequestVoteReply>
+    candidate_request_vote(std::string peer_addr);
+
     // boost::cobalt::task<void> heartbeat() {
 
     //     // switch (state) {
