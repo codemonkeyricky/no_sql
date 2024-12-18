@@ -28,6 +28,7 @@ cc_test(
         "node/test/replica.cc",
         "node/replica.hh",
         "node/replica_follower.cc",
+        "node/replica_candidate.cc",
         "node/replica_leader.cc",
     ],
     copts = [

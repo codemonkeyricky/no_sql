@@ -63,8 +63,9 @@ boost::cobalt::task<void> Replica::follower_rx_conn() {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
-    boost::asio::ip::tcp::acceptor acceptor(
-        io, {boost::asio::ip::tcp::v4(), impl.port});
+    /* TODO: extract port from my_addr */
+    boost::asio::ip::tcp::acceptor acceptor(io,
+                                            {boost::asio::ip::tcp::v4(), 5555});
 
     for (;;) {
         auto socket = co_await acceptor.async_accept(boost::cobalt::use_task);
