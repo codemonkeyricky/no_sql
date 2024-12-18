@@ -1,20 +1,21 @@
 #include "node/replica.hh"
 
-AppendEntryReply Replica::process_addEntry(const AppendEntryReq& entry) {
+Replica::AppendEntryReply
+Replica::process_addEntry(const Replica::AppendEntryReq& req) {
 
     /* Receiver implementation 1 */
-    if (entry.term < currentTerm) {
-        return {currentTerm, false};
+    if (req.term < pstate.currentTerm) {
+        return Replica::AppendEntryReply{pstate.currentTerm, false};
     }
 
     /* Receiver implementation 2 */
-    if (entry.prevLogIndex >= pstate.logs.size()) {
+    if (req.prevLogIndex >= pstate.logs.size()) {
         /* follower is not up to date */
-        return false;
+        return {pstate.currentTerm, false};
     }
 
     /* Receiver implementation 3 */
-    if (pstate.logs[entry.prevLogIndex].first != entry.prevLogTerm) {
+    if (pstate.logs[req.prevLogIndex].first != req.prevLogTerm) {
 
         /* follower has diverging history */
 
@@ -25,17 +26,23 @@ AppendEntryReply Replica::process_addEntry(const AppendEntryReq& entry) {
          */
 
         /* drop diverged history */
-        pstate.logs.resize(entry.prevLogIndex);
+        pstate.logs.resize(req.prevLogIndex);
 
-        return false;
+        return {pstate.currentTerm, false};
     }
 
-    /* matching history */
+    /* history must match at this point */
 
     /* Receiver implementation 4 */
-    pstate.logs.push_back(entry
+    if (req.entry)
+        pstate.logs.push_back({pstate.currentTerm, *req.entry});
 
-    /* TODO: Receiver implementation 5 */
-    if (entry.leaderCommit > commitIndex) {
+    /* Receiver implementation 5 */
+    if (req.leaderCommit > vstate.commitIndex) {
+
+        /* log ready to be executed */
+        vstate.commitIndex = min(req.leaderCommit, pstate.logs.size() - 1);
     }
+
+    return {pstate.currentTerm, true};
 }

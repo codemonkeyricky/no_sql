@@ -154,21 +154,21 @@ class Replica {
 
     Replica() {}
 
-    boost::cobalt::task<void> heartbeat() {
-
-        // switch (state) {
-        // case Leader:
-        //     co_await heartbeat_leader();
-        //     break;
-        // case Follower:
-        //     co_await heartbeat_follower();
-        //     break;
-        // case Candidate:
-        //     co_await heartbeat_candidate();
-        //     break;
-        // }
-        co_return;
-    }
-
     AppendEntryReply process_addEntry(const AppendEntryReq& entry);
+
+    // boost::cobalt::task<void> heartbeat() {
+
+    //     // switch (state) {
+    //     // case Leader:
+    //     //     co_await heartbeat_leader();
+    //     //     break;
+    //     // case Follower:
+    //     //     co_await heartbeat_follower();
+    //     //     break;
+    //     // case Candidate:
+    //     //     co_await heartbeat_candidate();
+    //     //     break;
+    //     // }
+    //     co_return;
+    // };
 };

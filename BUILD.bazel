@@ -27,6 +27,7 @@ cc_test(
     srcs = [
         "node/test/replica.cc",
         "node/replica.hh",
+        "node/replica_follower.cc",
     ],
     copts = [
         "-std=c++20",
