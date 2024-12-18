@@ -1,7 +1,7 @@
 #include "node/replica.hh"
 
 Replica::AppendEntryReply
-Replica::process_addEntry(const Replica::AppendEntryReq& req) {
+Replica::follower_process_addEntryReq(const Replica::AppendEntryReq& req) {
 
     /* Receiver implementation 1 */
     if (req.term < pstate.currentTerm) {
@@ -41,7 +41,8 @@ Replica::process_addEntry(const Replica::AppendEntryReq& req) {
     if (req.leaderCommit > vstate.commitIndex) {
 
         /* log ready to be executed */
-        vstate.commitIndex = min(req.leaderCommit, pstate.logs.size() - 1);
+        vstate.commitIndex =
+            std::min(req.leaderCommit, (int)pstate.logs.size() - 1);
     }
 
     return {pstate.currentTerm, true};

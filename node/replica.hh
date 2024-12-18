@@ -154,7 +154,9 @@ class Replica {
 
     Replica() {}
 
-    AppendEntryReply process_addEntry(const AppendEntryReq& entry);
+    AppendEntryReply follower_process_addEntryReq(const AppendEntryReq& entry);
+
+    boost::cobalt::task<void> follower_receiver();
 
     // boost::cobalt::task<void> heartbeat() {
 
