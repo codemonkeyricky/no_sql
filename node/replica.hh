@@ -124,6 +124,18 @@ class Replica {
         bool success;
     };
 
+    struct RequestVoteReq {
+        int term;
+        std::string candidateId;
+        int lastLogIndex;
+        int lastLogTerm;
+    };
+
+    struct RequestVoteReply {
+        int term;
+        bool voteGranted;
+    };
+
     Replica() {}
 
     boost::cobalt::task<Replica::AppendEntryReply>
