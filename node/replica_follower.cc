@@ -1,17 +1,17 @@
 #include "node/replica.hh"
 
-Replica::AppendEntryReply
+boost::cobalt::task<Replica::AppendEntryReply>
 Replica::follower_process_addEntryReq(const Replica::AppendEntryReq& req) {
 
     /* Receiver implementation 1 */
     if (req.term < pstate.currentTerm) {
-        return Replica::AppendEntryReply{pstate.currentTerm, false};
+        co_return Replica::AppendEntryReply{pstate.currentTerm, false};
     }
 
     /* Receiver implementation 2 */
     if (req.prevLogIndex >= pstate.logs.size()) {
         /* follower is not up to date */
-        return {pstate.currentTerm, false};
+        co_return {pstate.currentTerm, false};
     }
 
     /* Receiver implementation 3 */
@@ -28,14 +28,15 @@ Replica::follower_process_addEntryReq(const Replica::AppendEntryReq& req) {
         /* drop diverged history */
         pstate.logs.resize(req.prevLogIndex);
 
-        return {pstate.currentTerm, false};
+        co_return {pstate.currentTerm, false};
     }
 
     /* history must match at this point */
 
     /* Receiver implementation 4 */
-    if (req.entry)
+    if (req.entry) {
         pstate.logs.push_back({pstate.currentTerm, *req.entry});
+    }
 
     /* Receiver implementation 5 */
     if (req.leaderCommit > vstate.commitIndex) {
@@ -43,9 +44,19 @@ Replica::follower_process_addEntryReq(const Replica::AppendEntryReq& req) {
         /* log ready to be executed */
         vstate.commitIndex =
             std::min(req.leaderCommit, (int)pstate.logs.size() - 1);
+
+        /*
+         * Apply all committed logs.
+         *
+         * Note that re-applying already applied logs is assumed safe - this can
+         * happen since commitIndex is volatile and server can crash right after
+         * applying committed logs.
+         */
+        boost::cobalt::spawn(co_await boost::cobalt::this_coro::executor,
+                             apply_logs(), boost::asio::detached);
     }
 
-    return {pstate.currentTerm, true};
+    co_return {pstate.currentTerm, true};
 }
 
 boost::cobalt::task<void> Replica::follower_rx_conn() {
