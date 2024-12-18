@@ -165,6 +165,7 @@ class Replica {
     boost::cobalt::task<void> apply_logs() {
 
         while (vstate.lastApplied < vstate.commitIndex) {
+            /* TODO: execute the logs here */
         }
     }
 
