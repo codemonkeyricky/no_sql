@@ -69,3 +69,6 @@ boost::cobalt::task<bool> Replica::candidate_campaign() {
 
     co_return true;
 }
+
+boost::cobalt::task<bool> Replica::candidate_rx_request_vote() {}
+boost::cobalt::task<bool> Replica::candidate_rx_append_entry() {}
