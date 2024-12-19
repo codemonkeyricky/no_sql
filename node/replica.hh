@@ -67,11 +67,21 @@ class Replica {
 
     /* implementation requirements */
 
+    struct LeaderImpl {
+        bool step_down = 0;
+    };
+
+    struct FollowerImpl {
+        bool keep_alive = 0;
+    };
+
     struct Implementation {
         State state = Follower;
-        bool leader_keep_alive = false;
         std::string my_addr;
         std::vector<std::string> cluster;
+
+        LeaderImpl leader;
+        FollowerImpl follower;
     };
 
     Implementation impl;
@@ -163,8 +173,8 @@ class Replica {
     boost::cobalt::task<void> replicate_logs(
         std::optional<std::reference_wrapper<std::array<std::string, 2>>> kv);
 
-    boost::cobalt::task<Replica::AppendEntryReply>
-    replicate_log(std::string addr, Replica::AppendEntryReq req);
+    // boost::cobalt::task<Replica::AppendEntryReply>
+    // replicate_log(std::string addr, Replica::AppendEntryReq req);
 
     boost::cobalt::task<void> timeout(int ms) {
         boost::asio::steady_timer timer{

@@ -92,12 +92,16 @@ Replica::follower_rx_payload(boost::asio::ip::tcp::socket socket) {
 
 boost::cobalt::task<void> Replica::follower_fsm() {
 
+    impl.state = Follower;
+
     while (true) {
         /* wait for heartbeat timeout */
         co_await timeout(150);
 
-        // if (leader_heartbeat)
-        //     break;
+        if (!impl.follower.keep_alive)
+            break;
+
+        impl.follower.keep_alive = false;
     }
 
     /* failed to receive leader heartbeat - start campaigning */

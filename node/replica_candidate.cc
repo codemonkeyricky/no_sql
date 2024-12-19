@@ -54,6 +54,8 @@ boost::cobalt::task<void> timeout(int ms) {
 
 boost::cobalt::task<void> Replica::candidate_fsm() {
 
+    impl.state = Candidate;
+
     auto io = co_await boost::asio::this_coro::executor;
 
     vector<boost::cobalt::task<Replica::RequestVoteReply>> reqs;

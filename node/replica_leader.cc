@@ -4,8 +4,8 @@
 
 using namespace std;
 
-boost::cobalt::task<Replica::AppendEntryReply>
-Replica::replicate_log(std::string peer_addr, Replica::AppendEntryReq req) {
+static boost::cobalt::task<Replica::AppendEntryReply>
+replicate_log(std::string peer_addr, Replica::AppendEntryReq req) {
 
     auto p = peer_addr.find(":");
     auto addr = peer_addr.substr(0, p);
@@ -76,4 +76,22 @@ Replica::replicate_logs(optional<reference_wrapper<array<string, 2>>> kv) {
     }
 }
 
-boost::cobalt::task<void> Replica::leader_fsm() {}
+boost::cobalt::task<void> Replica::leader_fsm() {
+
+    impl.state = Leader;
+    impl.leader = {};
+
+    while (true) {
+        /* wait for heartbeat timeout */
+        co_await timeout(150);
+
+        if (impl.leader.step_down) {
+            break;
+        }
+    }
+
+    /* become a follower after stepping down */
+
+    auto io = co_await boost::cobalt::this_coro::executor;
+    boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
+}
