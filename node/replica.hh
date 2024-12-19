@@ -79,6 +79,7 @@ class Replica {
         State state = Follower;
         std::string my_addr;
         std::vector<std::string> cluster;
+        std::optional<std::string> votedFor;
 
         LeaderImpl leader;
         FollowerImpl follower;
