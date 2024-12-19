@@ -159,20 +159,23 @@ class Replica {
         boost::cobalt::spawn(io, rx_conn_acceptor(), boost::asio::detached);
     }
 
-    boost::cobalt::task<Replica::AppendEntryReply>
-    follower_add_entries_req(const AppendEntryReq& entry);
-    boost::cobalt::task<Replica::RequestVoteReply>
-    follower_request_vote_req(const RequestVoteReq& entry);
+    using RequestVariant =
+        boost::variant2::variant<AppendEntryReq, RequestVoteReq>;
 
-    boost::cobalt::task<Replica::AppendEntryReply>
-    leader_add_entries_req(const AppendEntryReq& entry);
-    boost::cobalt::task<Replica::RequestVoteReply>
-    leader_request_vote_req(const RequestVoteReq& entry);
+    boost::cobalt::task<AppendEntryReply>
+    follower_add_entries(const AppendEntryReq& req);
+    boost::cobalt::task<RequestVoteReply>
+    follower_request_vote(const RequestVoteReq& req);
 
-    boost::cobalt::task<Replica::AppendEntryReply>
-    candidate_add_entries_req(const AppendEntryReq& entry);
-    boost::cobalt::task<Replica::RequestVoteReply>
-    candidate_request_vote_req(const RequestVoteReq& entry);
+    boost::cobalt::task<AppendEntryReply>
+    leader_add_entries(const AppendEntryReq& req);
+    boost::cobalt::task<RequestVoteReply>
+    leader_request_vote(const RequestVoteReq& req);
+
+    boost::cobalt::task<AppendEntryReply>
+    candidate_add_entries(const AppendEntryReq& req);
+    boost::cobalt::task<RequestVoteReply>
+    candidate_request_vote(const RequestVoteReq& req);
 
     boost::cobalt::task<void> leader_replicate_logs(
         std::optional<std::reference_wrapper<std::array<std::string, 2>>> kv);
@@ -213,6 +216,12 @@ class Replica {
         }
     }
 
+    std::function<boost::cobalt::task<void>(const RequestVariant&)>
+        rx_payload_handler;
+
+    // boost::cobalt::task<void>
+    // rx_payload_handler(const RequestVariant& variant) {}
+
     boost::cobalt::task<void>
     rx_conn_handler(boost::asio::ip::tcp::socket socket) {
 
@@ -222,14 +231,30 @@ class Replica {
         std::size_t n = co_await socket.async_read_some(
             boost::asio::buffer(data), boost::cobalt::use_task);
 
-        switch (impl.state) {
-        case Candidate:
-            break;
-        case Follower:
-            break;
+        // AppendEntryReq add_entry_req;
+        // RequestVoteReq req_vote_req;
 
-        case Leader:
-            break;
-        }
+        RequestVariant var;
+
+        co_await rx_payload_handler(var);
+
+        // #define ADD_ENTRIES 0
+        // #define REQ_VOTE 1
+        //         int payload_type = 0;
+
+        //         switch (impl.state) {
+        //         case Candidate:
+        //             if (payload_type == ADD_ENTRIES) {
+
+        //             } else {
+        //             }
+        //             break;
+        //         case Follower:
+        //         if(payload_type)
+        //             break;
+
+        //         case Leader:
+        //             break;
+        //         }
     }
 };
