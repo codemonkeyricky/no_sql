@@ -4,8 +4,8 @@
 
 using namespace std;
 
-boost::cobalt::task<Replica::RequestVoteReply>
-Replica::candidate_request_vote(std::string peer_addr) {
+static boost::cobalt::task<Replica::RequestVoteReply>
+request_vote(std::string peer_addr) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -38,37 +38,73 @@ Replica::candidate_request_vote(std::string peer_addr) {
     //     auto n = co_await socket.async_read_some(
     //         boost::asio::buffer(payload), boost::cobalt::use_task);
 
-    RequestVoteReply reply{};
+    Replica::RequestVoteReply reply{};
     co_return reply;
 }
 
-boost::cobalt::task<bool> Replica::candidate_campaign() {
+boost::cobalt::task<void> timeout(int ms) {
+    boost::asio::steady_timer timer{
+        co_await boost::cobalt::this_coro::executor};
+    timer.expires_after(std::chrono::milliseconds(ms));
+
+    co_await timer.async_wait(boost::cobalt::use_op);
+
+    co_return;
+}
+
+boost::cobalt::task<void> Replica::candidate_fsm() {
 
     auto io = co_await boost::asio::this_coro::executor;
 
-    int highest_term = 0;
-    int vote_cnt = 0;
+    vector<boost::cobalt::task<Replica::RequestVoteReply>> reqs;
 
     for (auto peer_addr : impl.cluster) {
-        auto [term, vote_granted] = co_await candidate_request_vote(peer_addr);
-        vote_cnt += vote_cnt;
-        highest_term = max(highest_term, term);
+        reqs.push_back(request_vote(peer_addr));
     }
 
-    if (highest_term > pstate.currentTerm) {
-        /* someone was elected? */
-        co_return false;
+    /* wait until either all reqs are serviced or timeout */
+
+    auto rv = co_await boost::cobalt::race(
+        boost::cobalt::gather(std::move(reqs)), timeout(150));
+
+    bool leader = true;
+
+    switch (rv.index()) {
+    case 0: {
+        /* all requests finished */
+        cout << "candidate_campaign(): All request_vote() completed!" << endl;
+        auto replies = get<0>(rv);
+
+        int highest_term = 0;
+        int vote_cnt = 0;
+
+        for (auto& reply_variant : replies) {
+            auto [term, vote] = reply_variant.value();
+            highest_term = max(highest_term, term);
+            vote_cnt += vote;
+        }
+
+        if (highest_term > pstate.currentTerm) {
+            /* someone was elected? */
+            leader = false;
+        } else if (vote_cnt < impl.cluster.size() / 2 + 1) {
+            /* failed to achieve majority vote */
+            leader = false;
+        }
+
+    } break;
+    case 1: {
+        cout << "candidate_campaign(): request_vote() timeout!" << endl;
+        leader = false;
+    } break;
     }
 
-    if (vote_cnt < impl.cluster.size() / 2 + 1) {
-        /* failed to achieve majority vote */
-        co_return false;
+    if (leader) {
+        /* transition to be a leader */
+    } else {
+        /* transition to be a follower */
     }
-
-    /* transition to leader */
-
-    co_return true;
 }
 
-boost::cobalt::task<bool> Replica::candidate_rx_request_vote() {}
-boost::cobalt::task<bool> Replica::candidate_rx_append_entry() {}
+// boost::cobalt::task<bool> Replica::candidate_rx_request_vote() {}
+// boost::cobalt::task<bool> Replica::candidate_rx_append_entry() {}

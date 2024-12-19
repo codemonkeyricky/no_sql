@@ -61,11 +61,26 @@ boost::cobalt::task<void> to_run() {
     co_return;
 }
 
+boost::cobalt::task<void> timer_exp() {
+    boost::asio::steady_timer timer{
+        co_await boost::cobalt::this_coro::executor};
+    timer.expires_after(std::chrono::milliseconds(2000));
+
+    cout << "before wait ... " << endl;
+
+    co_await timer.async_wait(boost::cobalt::use_op);
+
+    cout << "after wait ... " << endl;
+
+    co_return;
+}
+
 int main() {
 
     boost::asio::io_context io(1);
 
-    boost::cobalt::spawn(io, to_run(), boost::asio::detached);
+    // boost::cobalt::spawn(io, to_run(), boost::asio::detached);
+    boost::cobalt::spawn(io, timer_exp(), boost::asio::detached);
 
     io.run();
 }

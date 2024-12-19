@@ -107,7 +107,7 @@ class Replica {
         co_return;
     }
 
-    boost::cobalt::task<bool> candidate_campaign();
+    boost::cobalt::task<void> candidate_fsm();
 
   public:
     struct AppendEntryReq {
@@ -163,26 +163,4 @@ class Replica {
 
     boost::cobalt::task<Replica::AppendEntryReply>
     replicate_log(std::string addr, Replica::AppendEntryReq req);
-
-    boost::cobalt::task<Replica::RequestVoteReply>
-    candidate_request_vote(std::string peer_addr);
-
-    // boost::cobalt::task<void> heartbeat() {
-
-    //     switch (state) {
-    //     case Leader:
-    //         co_await heartbeat_leader();
-    //         break;
-    //     case Follower:
-    //         co_await heartbeat_follower();
-    //         break;
-    //     case Candidate:
-    //         co_await heartbeat_candidate();
-    //         break;
-    //     }
-    //     co_return;
-    // };
-
-    boost::cobalt::task<bool> candidate_rx_request_vote() {}
-    boost::cobalt::task<bool> candidate_rx_append_entry() {}
 };
