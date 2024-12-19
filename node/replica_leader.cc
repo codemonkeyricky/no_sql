@@ -4,6 +4,12 @@
 
 using namespace std;
 
+boost::cobalt::task<Replica::RequestVoteReply>
+Replica::leader_request_vote(const Replica::RequestVoteReq& req) {}
+
+boost::cobalt::task<Replica::AppendEntryReply>
+Replica::leader_add_entries(const Replica::AppendEntryReq& req) {}
+
 static boost::cobalt::task<Replica::AppendEntryReply>
 replicate_log(std::string peer_addr, Replica::AppendEntryReq req) {
 
@@ -43,8 +49,8 @@ replicate_log(std::string peer_addr, Replica::AppendEntryReq req) {
     co_return empty;
 }
 
-boost::cobalt::task<void>
-Replica::leader_replicate_logs(optional<reference_wrapper<array<string, 2>>> kv) {
+boost::cobalt::task<void> Replica::leader_replicate_logs(
+    optional<reference_wrapper<array<string, 2>>> kv) {
 
     int success_cnt = 0;
     int highest_term = 0;
@@ -78,8 +84,29 @@ Replica::leader_replicate_logs(optional<reference_wrapper<array<string, 2>>> kv)
 
 boost::cobalt::task<void> Replica::leader_fsm() {
 
+    auto leader_rx_payload_handler =
+        [this](const Replica::RequestVariant& variant)
+        -> boost::cobalt::task<void> {
+        switch (variant.index()) {
+        case 0: {
+            /* append entries */
+            auto reply = co_await leader_add_entries(get<0>(variant));
+        } break;
+        case 1: {
+            // auto req = variant.value();
+            auto reply = co_await leader_request_vote(get<1>(variant));
+        } break;
+        }
+    };
+
     impl.state = Leader;
     impl.leader = {};
+
+    rx_payload_handler = [&](const RequestVariant& variant) {
+        /* need to trampoline through a lambda because rx_payload_handler
+         * parameters is missing the implicit "this" argument */
+        return leader_rx_payload_handler(variant);
+    };
 
     while (true) {
         /* wait for heartbeat timeout */
