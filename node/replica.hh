@@ -136,7 +136,12 @@ class Replica {
         bool voteGranted;
     };
 
-    Replica() {}
+    Replica() { /* spawn as follower */ }
+
+    boost::cobalt::task<void> init() {
+        boost::cobalt::spawn(co_await boost::cobalt::this_coro::executor,
+                             follower_rx_conn(), boost::asio::detached);
+    }
 
     boost::cobalt::task<Replica::AppendEntryReply>
     follower_process_addEntryReq(const AppendEntryReq& entry);
@@ -164,17 +169,17 @@ class Replica {
 
     // boost::cobalt::task<void> heartbeat() {
 
-    //     // switch (state) {
-    //     // case Leader:
-    //     //     co_await heartbeat_leader();
-    //     //     break;
-    //     // case Follower:
-    //     //     co_await heartbeat_follower();
-    //     //     break;
-    //     // case Candidate:
-    //     //     co_await heartbeat_candidate();
-    //     //     break;
-    //     // }
+    //     switch (state) {
+    //     case Leader:
+    //         co_await heartbeat_leader();
+    //         break;
+    //     case Follower:
+    //         co_await heartbeat_follower();
+    //         break;
+    //     case Candidate:
+    //         co_await heartbeat_candidate();
+    //         break;
+    //     }
     //     co_return;
     // };
 };
