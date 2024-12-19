@@ -4,14 +4,16 @@
 
 using namespace std;
 
+template <>
 boost::cobalt::task<Replica::RequestVoteReply>
-Replica::candidate_request_vote(const Replica::RequestVoteReq& req) {}
+Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {}
 
+template <>
 boost::cobalt::task<Replica::AppendEntryReply>
-Replica::candidate_add_entries(const Replica::AppendEntryReq& req) {}
+Replica::add_entries<Replica::Candidate>(const Replica::AppendEntryReq& req) {}
 
 static boost::cobalt::task<Replica::RequestVoteReply>
-request_vote(std::string peer_addr) {
+request_vote_from_peer(std::string peer_addr) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -48,16 +50,6 @@ request_vote(std::string peer_addr) {
     co_return reply;
 }
 
-boost::cobalt::task<void> timeout(int ms) {
-    boost::asio::steady_timer timer{
-        co_await boost::cobalt::this_coro::executor};
-    timer.expires_after(std::chrono::milliseconds(ms));
-
-    co_await timer.async_wait(boost::cobalt::use_op);
-
-    co_return;
-}
-
 boost::cobalt::task<void> Replica::candidate_fsm() {
 
     auto candidate_rx_payload_handler =
@@ -66,11 +58,13 @@ boost::cobalt::task<void> Replica::candidate_fsm() {
         switch (variant.index()) {
         case 0: {
             /* append entries */
-            auto reply = co_await candidate_add_entries(get<0>(variant));
+            auto reply =
+                co_await add_entries<Replica::Candidate>(get<0>(variant));
         } break;
         case 1: {
             // auto req = variant.value();
-            auto reply = co_await candidate_request_vote(get<1>(variant));
+            auto reply =
+                co_await request_vote<Replica::Candidate>(get<1>(variant));
         } break;
         }
     };
@@ -88,7 +82,7 @@ boost::cobalt::task<void> Replica::candidate_fsm() {
     vector<boost::cobalt::task<Replica::RequestVoteReply>> reqs;
 
     for (auto peer_addr : impl.cluster) {
-        reqs.push_back(request_vote(peer_addr));
+        reqs.push_back(request_vote_from_peer(peer_addr));
     }
 
     /* wait until either all reqs are serviced or timeout */

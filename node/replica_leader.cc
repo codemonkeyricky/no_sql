@@ -4,11 +4,13 @@
 
 using namespace std;
 
+template <>
 boost::cobalt::task<Replica::RequestVoteReply>
-Replica::leader_request_vote(const Replica::RequestVoteReq& req) {}
+Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {}
 
+template <>
 boost::cobalt::task<Replica::AppendEntryReply>
-Replica::leader_add_entries(const Replica::AppendEntryReq& req) {}
+Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {}
 
 static boost::cobalt::task<Replica::AppendEntryReply>
 replicate_log(std::string peer_addr, Replica::AppendEntryReq req) {
@@ -90,11 +92,12 @@ boost::cobalt::task<void> Replica::leader_fsm() {
         switch (variant.index()) {
         case 0: {
             /* append entries */
-            auto reply = co_await leader_add_entries(get<0>(variant));
+            auto reply = co_await add_entries<Replica::Leader>(get<0>(variant));
         } break;
         case 1: {
             // auto req = variant.value();
-            auto reply = co_await leader_request_vote(get<1>(variant));
+            auto reply =
+                co_await request_vote<Replica::Leader>(get<1>(variant));
         } break;
         }
     };

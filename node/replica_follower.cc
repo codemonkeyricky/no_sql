@@ -1,10 +1,12 @@
 #include "node/replica.hh"
 
+template <>
 boost::cobalt::task<Replica::RequestVoteReply>
-Replica::follower_request_vote(const Replica::RequestVoteReq& req) {}
+Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& req) {}
 
+template <>
 boost::cobalt::task<Replica::AppendEntryReply>
-Replica::follower_add_entries(const Replica::AppendEntryReq& req) {
+Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req) {
 
     /* Receiver implementation 1 */
     if (req.term < pstate.currentTerm) {
@@ -74,11 +76,13 @@ boost::cobalt::task<void> Replica::follower_fsm() {
         switch (variant.index()) {
         case 0: {
             /* append entries */
-            auto reply = co_await follower_add_entries(get<0>(variant));
+            auto reply =
+                co_await add_entries<Replica::Follower>(get<0>(variant));
         } break;
         case 1: {
             // auto req = variant.value();
-            auto reply = co_await follower_request_vote(get<1>(variant));
+            auto reply =
+                co_await request_vote<Replica::Follower>(get<1>(variant));
         } break;
         }
     };

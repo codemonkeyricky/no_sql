@@ -162,20 +162,22 @@ class Replica {
     using RequestVariant =
         boost::variant2::variant<AppendEntryReq, RequestVoteReq>;
 
+    template <State T>
     boost::cobalt::task<AppendEntryReply>
-    follower_add_entries(const AppendEntryReq& req);
+    add_entries(const AppendEntryReq& req);
+    template <State T>
     boost::cobalt::task<RequestVoteReply>
-    follower_request_vote(const RequestVoteReq& req);
+    request_vote(const RequestVoteReq& req);
 
-    boost::cobalt::task<AppendEntryReply>
-    leader_add_entries(const AppendEntryReq& req);
-    boost::cobalt::task<RequestVoteReply>
-    leader_request_vote(const RequestVoteReq& req);
+    // boost::cobalt::task<AppendEntryReply>
+    // leader_add_entries(const AppendEntryReq& req);
+    // boost::cobalt::task<RequestVoteReply>
+    // leader_request_vote(const RequestVoteReq& req);
 
-    boost::cobalt::task<AppendEntryReply>
-    candidate_add_entries(const AppendEntryReq& req);
-    boost::cobalt::task<RequestVoteReply>
-    candidate_request_vote(const RequestVoteReq& req);
+    // boost::cobalt::task<AppendEntryReply>
+    // candidate_add_entries(const AppendEntryReq& req);
+    // boost::cobalt::task<RequestVoteReply>
+    // candidate_request_vote(const RequestVoteReq& req);
 
     boost::cobalt::task<void> leader_replicate_logs(
         std::optional<std::reference_wrapper<std::array<std::string, 2>>> kv);
