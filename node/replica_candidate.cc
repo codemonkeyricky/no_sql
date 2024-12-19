@@ -40,7 +40,22 @@ Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
 
 template <>
 boost::cobalt::task<Replica::AppendEntryReply>
-Replica::add_entries<Replica::Candidate>(const Replica::AppendEntryReq& req) {}
+Replica::add_entries<Replica::Candidate>(const Replica::AppendEntryReq& req) {
+
+    // int term;
+    // std::string leaderId;
+    // int prevLogIndex;
+    // int prevLogTerm;
+    // int leaderCommit;
+    // std::optional<std::array<std::string, 2>> entry; /* key / value*/
+
+    if (req.term < pstate.currentTerm) {
+        /* leader is stale - reject */
+        co_return {pstate.term, false};
+    } else {
+        /* we are stale. abandon the campaign and become a follower */
+    }
+}
 
 static boost::cobalt::task<Replica::RequestVoteReply>
 request_vote_from_peer(std::string peer_addr) {
