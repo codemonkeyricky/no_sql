@@ -90,4 +90,18 @@ Replica::follower_rx_payload(boost::asio::ip::tcp::socket socket) {
     // }
 }
 
-boost::cobalt::task<void> Replica::follower_fsm() {}
+boost::cobalt::task<void> Replica::follower_fsm() {
+
+    while (true) {
+        /* wait for heartbeat timeout */
+        co_await timeout(150);
+
+        // if (leader_heartbeat)
+        //     break;
+    }
+
+    /* failed to receive leader heartbeat - start campaigning */
+
+    auto io = co_await boost::cobalt::this_coro::executor;
+    boost::cobalt::spawn(io, candidate_fsm(), boost::asio::detached);
+}

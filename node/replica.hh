@@ -165,4 +165,14 @@ class Replica {
 
     boost::cobalt::task<Replica::AppendEntryReply>
     replicate_log(std::string addr, Replica::AppendEntryReq req);
+
+    boost::cobalt::task<void> timeout(int ms) {
+        boost::asio::steady_timer timer{
+            co_await boost::cobalt::this_coro::executor};
+        timer.expires_after(std::chrono::milliseconds(ms));
+
+        co_await timer.async_wait(boost::cobalt::use_op);
+
+        co_return;
+    }
 };
