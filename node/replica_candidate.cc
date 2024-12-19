@@ -4,6 +4,12 @@
 
 using namespace std;
 
+boost::cobalt::task<Replica::RequestVoteReply>
+Replica::candidate_request_vote(const Replica::RequestVoteReq& req) {}
+
+boost::cobalt::task<Replica::AppendEntryReply>
+Replica::candidate_add_entries(const Replica::AppendEntryReq& req) {}
+
 static boost::cobalt::task<Replica::RequestVoteReply>
 request_vote(std::string peer_addr) {
 
@@ -54,7 +60,28 @@ boost::cobalt::task<void> timeout(int ms) {
 
 boost::cobalt::task<void> Replica::candidate_fsm() {
 
+    auto candidate_rx_payload_handler =
+        [this](const Replica::RequestVariant& variant)
+        -> boost::cobalt::task<void> {
+        switch (variant.index()) {
+        case 0: {
+            /* append entries */
+            auto reply = co_await candidate_add_entries(get<0>(variant));
+        } break;
+        case 1: {
+            // auto req = variant.value();
+            auto reply = co_await candidate_request_vote(get<1>(variant));
+        } break;
+        }
+    };
+
     impl.state = Candidate;
+
+    rx_payload_handler = [&](const RequestVariant& variant) {
+        /* need to trampoline through a lambda because rx_payload_handler
+         * parameters is missing the implicit "this" argument */
+        return candidate_rx_payload_handler(variant);
+    };
 
     auto io = co_await boost::asio::this_coro::executor;
 
