@@ -108,6 +108,8 @@ class Replica {
     }
 
     boost::cobalt::task<void> candidate_fsm();
+    boost::cobalt::task<void> leader_fsm();
+    boost::cobalt::task<void> follower_fsm();
 
   public:
     struct AppendEntryReq {

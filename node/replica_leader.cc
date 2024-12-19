@@ -75,3 +75,5 @@ Replica::replicate_logs(optional<reference_wrapper<array<string, 2>>> kv) {
         co_await apply_logs();
     }
 }
+
+boost::cobalt::task<void> Replica::leader_fsm() {}

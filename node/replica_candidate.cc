@@ -101,8 +101,10 @@ boost::cobalt::task<void> Replica::candidate_fsm() {
 
     if (leader) {
         /* transition to be a leader */
+        boost::cobalt::spawn(io, leader_fsm(), boost::asio::detached);
     } else {
         /* transition to be a follower */
+        boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
     }
 }
 

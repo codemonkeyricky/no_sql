@@ -89,3 +89,5 @@ Replica::follower_rx_payload(boost::asio::ip::tcp::socket socket) {
     // if (cmd == "add_node") {
     // }
 }
+
+boost::cobalt::task<void> Replica::follower_fsm() {}
