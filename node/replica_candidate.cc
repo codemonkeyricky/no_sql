@@ -109,6 +109,3 @@ boost::cobalt::task<void> Replica::candidate_fsm() {
         boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
     }
 }
-
-// boost::cobalt::task<bool> Replica::candidate_rx_request_vote() {}
-// boost::cobalt::task<bool> Replica::candidate_rx_append_entry() {}

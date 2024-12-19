@@ -151,31 +151,33 @@ class Replica {
     Replica() { /* spawn as follower */ }
 
     boost::cobalt::task<void> init() {
-        boost::cobalt::spawn(co_await boost::cobalt::this_coro::executor,
-                             follower_rx_conn(), boost::asio::detached);
+
+        auto io = co_await boost::cobalt::this_coro::executor;
+
+        boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
+
+        boost::cobalt::spawn(io, rx_conn_acceptor(), boost::asio::detached);
     }
 
     boost::cobalt::task<Replica::AppendEntryReply>
-    follower_process_addEntryReq(const AppendEntryReq& entry);
+    follower_add_entries_req(const AppendEntryReq& entry);
+    boost::cobalt::task<Replica::RequestVoteReply>
+    follower_request_vote_req(const RequestVoteReq& entry);
 
-    boost::cobalt::task<void> follower_rx_conn();
-    boost::cobalt::task<void>
-    follower_rx_payload(boost::asio::ip::tcp::socket socket);
+    boost::cobalt::task<Replica::AppendEntryReply>
+    leader_add_entries_req(const AppendEntryReq& entry);
+    boost::cobalt::task<Replica::RequestVoteReply>
+    leader_request_vote_req(const RequestVoteReq& entry);
 
-    boost::cobalt::task<void> apply_logs() {
-        while (vstate.lastApplied < vstate.commitIndex) {
-            /* TODO: execute the logs here */
-        }
+    boost::cobalt::task<Replica::AppendEntryReply>
+    candidate_add_entries_req(const AppendEntryReq& entry);
+    boost::cobalt::task<Replica::RequestVoteReply>
+    candidate_request_vote_req(const RequestVoteReq& entry);
 
-        co_return;
-    }
-
-    boost::cobalt::task<void> replicate_logs(
+    boost::cobalt::task<void> leader_replicate_logs(
         std::optional<std::reference_wrapper<std::array<std::string, 2>>> kv);
 
-    // boost::cobalt::task<Replica::AppendEntryReply>
-    // replicate_log(std::string addr, Replica::AppendEntryReq req);
-
+    /* used by everyone */
     boost::cobalt::task<void> timeout(int ms) {
         boost::asio::steady_timer timer{
             co_await boost::cobalt::this_coro::executor};
@@ -184,5 +186,50 @@ class Replica {
         co_await timer.async_wait(boost::cobalt::use_op);
 
         co_return;
+    }
+
+    /* used by leader and follower */
+    boost::cobalt::task<void> apply_logs() {
+        while (vstate.lastApplied < vstate.commitIndex) {
+            /* TODO: execute the logs here */
+        }
+
+        co_return;
+    }
+
+    boost::cobalt::task<void> rx_conn_acceptor() {
+
+        auto io = co_await boost::cobalt::this_coro::executor;
+
+        /* TODO: extract port from my_addr */
+        boost::asio::ip::tcp::acceptor acceptor(
+            io, {boost::asio::ip::tcp::v4(), 5555});
+
+        for (;;) {
+            auto socket =
+                co_await acceptor.async_accept(boost::cobalt::use_task);
+            boost::cobalt::spawn(io, rx_conn_handler(std::move(socket)),
+                                 boost::asio::detached);
+        }
+    }
+
+    boost::cobalt::task<void>
+    rx_conn_handler(boost::asio::ip::tcp::socket socket) {
+
+        auto io = co_await boost::cobalt::this_coro::executor;
+
+        char data[1024] = {};
+        std::size_t n = co_await socket.async_read_some(
+            boost::asio::buffer(data), boost::cobalt::use_task);
+
+        switch (impl.state) {
+        case Candidate:
+            break;
+        case Follower:
+            break;
+
+        case Leader:
+            break;
+        }
     }
 };

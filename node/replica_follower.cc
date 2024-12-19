@@ -1,7 +1,7 @@
 #include "node/replica.hh"
 
 boost::cobalt::task<Replica::AppendEntryReply>
-Replica::follower_process_addEntryReq(const Replica::AppendEntryReq& req) {
+Replica::follower_add_entries_req(const Replica::AppendEntryReq& req) {
 
     /* Receiver implementation 1 */
     if (req.term < pstate.currentTerm) {
@@ -57,37 +57,6 @@ Replica::follower_process_addEntryReq(const Replica::AppendEntryReq& req) {
     }
 
     co_return {pstate.currentTerm, true};
-}
-
-boost::cobalt::task<void> Replica::follower_rx_conn() {
-
-    auto io = co_await boost::cobalt::this_coro::executor;
-
-    /* TODO: extract port from my_addr */
-    boost::asio::ip::tcp::acceptor acceptor(io,
-                                            {boost::asio::ip::tcp::v4(), 5555});
-
-    for (;;) {
-        auto socket = co_await acceptor.async_accept(boost::cobalt::use_task);
-        boost::cobalt::spawn(io, follower_rx_payload(std::move(socket)),
-                             boost::asio::detached);
-    }
-}
-
-boost::cobalt::task<void>
-Replica::follower_rx_payload(boost::asio::ip::tcp::socket socket) {
-
-    auto io = co_await boost::cobalt::this_coro::executor;
-
-    char data[1024] = {};
-    std::size_t n = co_await socket.async_read_some(boost::asio::buffer(data),
-                                                    boost::cobalt::use_task);
-
-    // string payload = string(data, n);
-    // auto p = payload.find(":");
-    // auto cmd = payload.substr(0, p);
-    // if (cmd == "add_node") {
-    // }
 }
 
 boost::cobalt::task<void> Replica::follower_fsm() {

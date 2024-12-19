@@ -44,7 +44,7 @@ replicate_log(std::string peer_addr, Replica::AppendEntryReq req) {
 }
 
 boost::cobalt::task<void>
-Replica::replicate_logs(optional<reference_wrapper<array<string, 2>>> kv) {
+Replica::leader_replicate_logs(optional<reference_wrapper<array<string, 2>>> kv) {
 
     int success_cnt = 0;
     int highest_term = 0;
