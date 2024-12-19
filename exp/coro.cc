@@ -21,27 +21,42 @@
 
 using namespace std;
 
-boost::cobalt::task<void> quick_task() {
+boost::cobalt::task<int> quick_task(int k) {
     cout << "### quick" << endl;
-    co_return;
+    co_return k;
 }
 
-boost::cobalt::task<void> micro_task(int k) {
-    cout << "### " << k << endl;
-    co_return;
+boost::cobalt::task<int> micro_task(int k) {
+    // cout << "### " << k << endl;
+    co_return k;
 }
 
 boost::cobalt::task<void> to_run() {
 
-    std::vector<boost::cobalt::task<void>> tasks;
+    std::vector<boost::cobalt::task<int>> tasks;
     for (int i = 0; i < 8; ++i) {
         tasks.push_back(micro_task(i));
     }
 
     /* The following returns either when tasks are done or quick_task is done */
 
-    co_await boost::cobalt::race(boost::cobalt::gather(std::move(tasks)),
-                                 quick_task());
+    auto rv = co_await boost::cobalt::race(
+        boost::cobalt::gather(std::move(tasks)), quick_task(3));
+
+    switch (rv.index()) {
+    case 0: {
+
+        for (auto k = 0; k < 8; ++k)
+            /* seriously what the shit is this? */
+            cout << get<0>(rv)[k].value() << endl;
+        cout << "tasks finished" << endl;
+    } break;
+    case 1: {
+
+        cout << get<1>(rv) << endl;
+        cout << "quick_task finished" << endl;
+    } break;
+    }
 
     co_return;
 }
