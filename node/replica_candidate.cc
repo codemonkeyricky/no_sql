@@ -49,12 +49,14 @@ Replica::add_entries<Replica::Candidate>(const Replica::AppendEntryReq& req) {
     // int leaderCommit;
     // std::optional<std::array<std::string, 2>> entry; /* key / value*/
 
+#if 0
     if (req.term < pstate.currentTerm) {
         /* leader is stale - reject */
         co_return {pstate.term, false};
     } else {
         /* we are stale. abandon the campaign and become a follower */
     }
+    #endif
 }
 
 static boost::cobalt::task<Replica::RequestVoteReply>
@@ -97,6 +99,7 @@ request_vote_from_peer(std::string peer_addr) {
 
 boost::cobalt::task<void> Replica::candidate_fsm() {
 
+#if 0
     auto candidate_rx_payload_handler =
         [this](const Replica::RequestVariant& variant)
         -> boost::cobalt::task<void> {
@@ -174,4 +177,5 @@ boost::cobalt::task<void> Replica::candidate_fsm() {
         /* transition to be a follower */
         boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
     }
+#endif
 }
