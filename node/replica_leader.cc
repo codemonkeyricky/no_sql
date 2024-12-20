@@ -119,7 +119,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::socket socket) {
     auto io = co_await boost::cobalt::this_coro::executor;
 
     boost::asio::steady_timer cancel{io};
-    // auto cancel.expires_after(std::chrono::milliseconds(1000)); /* TODO */
+    cancel.expires_after(std::chrono::milliseconds(1000)); /* TODO */
     // impl.leader.cancel_timer.expires_after(std::chrono::milliseconds(1000));
 
     auto rx_coro =
