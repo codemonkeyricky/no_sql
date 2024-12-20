@@ -101,8 +101,11 @@ auto Replica::rx_payload_handler<Replica::Leader>(
     case 1: {
         // auto req = variant.value();
         auto reply = co_await request_vote<Replica::Leader>(get<1>(variant));
+        rv = ReplyVariant(reply);
     } break;
     }
+
+    co_return rv;
 };
 
 template <>
