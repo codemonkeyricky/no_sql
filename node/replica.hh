@@ -190,14 +190,14 @@ class Replica {
         std::optional<std::reference_wrapper<std::array<std::string, 2>>> kv);
 
     /* used by everyone */
-    boost::cobalt::task<void> timeout(int ms) {
+    boost::cobalt::task<bool> timeout(int ms) {
         boost::asio::steady_timer timer{
             co_await boost::cobalt::this_coro::executor};
         timer.expires_after(std::chrono::milliseconds(ms));
 
         co_await timer.async_wait(boost::cobalt::use_op);
 
-        co_return;
+        co_return true;
     }
 
     /* used by leader and follower */

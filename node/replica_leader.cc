@@ -70,7 +70,11 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
 
 template <>
 Replica::AppendEntryReply
-Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {}
+Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {
+
+    auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit, entry] =
+        req;
+}
 
 static boost::cobalt::task<Replica::AppendEntryReply>
 replicate_log(std::string peer_addr, Replica::AppendEntryReq req) {
@@ -198,12 +202,17 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
 
             /* TODO: deserialize the payload here */
             Replica::RequestVariant req_var;
-            auto reply_var = rx_payload_handler<Leader>(req_var);
+            auto [state, reply_var] = rx_payload_handler<Leader>(req_var);
 
             /* TODO: serialize reply_var */
             // co_await boost::asio::async_write(
             //     socket, boost::asio::buffer(reply.c_str(), reply.size()),
             //     boost::cobalt::use_task);
+
+            if (state != Replica::Leader) {
+                /* processing the payload is forcing a step down */
+                teardown = true;
+            }
 
         } break;
         case 1: {
@@ -225,20 +234,36 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
-    boost::asio::steady_timer cancel_timer{io};
-    cancel_timer.expires_after(
+    boost::asio::steady_timer cancel{io};
+    cancel.expires_after(
         std::chrono::milliseconds(1000)); /* TODO: block forever */
 
     auto rx_coro = boost::cobalt::spawn(
-        io, rx_connection<Replica::Leader>(acceptor, cancel_timer),
+        io, rx_connection<Replica::Leader>(acceptor, cancel),
         boost::cobalt::use_task);
+
+    auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
+        boost::system::error_code ec;
+        co_await cancel.async_wait(
+            boost::asio::redirect_error(boost::cobalt::use_task, ec));
+    };
 
     while (true) {
         /* wait for heartbeat timeout */
         /* TODO: randomized timeout? */
-        co_await timeout(150);
+        bool stepping_down = false;
+        auto nx = co_await boost::cobalt::race(timeout(150), wait_for_cancel());
+        switch (nx.index()) {
+        case 0: {
+            /* TODO: heartbeat - establish authority */
+        } break;
+        case 1: {
+            /* stepping down */
+            stepping_down = true;
+        } break;
+        }
 
-        if (impl.leader.step_down) {
+        if (stepping_down) {
             break;
         }
     }
@@ -246,7 +271,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     /* become a follower after stepping down */
 
     /* wait for rx_connection to complete */
-    cancel_timer.cancel();
+    cancel.cancel();
     co_await rx_coro;
 
     boost::cobalt::spawn(io, follower_fsm(move(acceptor)),

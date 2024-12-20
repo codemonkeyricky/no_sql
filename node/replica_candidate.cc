@@ -135,7 +135,7 @@ boost::cobalt::task<void> Replica::candidate_fsm() {
 
     /* wait until either all reqs are serviced or timeout */
 
-    auto rv = co_await boost::cobalt::race(
+    auto rv = co_await boost::cobalt::(
         boost::cobalt::gather(std::move(reqs)), timeout(150));
 
     bool leader = true;
