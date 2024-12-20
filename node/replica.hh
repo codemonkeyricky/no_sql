@@ -69,6 +69,7 @@ class Replica {
 
     struct LeaderImpl {
         bool step_down = 0;
+        // boost::asio::steady_timer cancel_timer;
     };
 
     struct FollowerImpl {

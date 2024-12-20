@@ -86,7 +86,7 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
     }
 }
 
-boost::cobalt::task<void> follower_rx(boost::asio::ip::tcp::socket socket) {}
+boost::cobalt::task<void> follower_rx(boost::asio::ip::tcp::socket& socket) {}
 
 boost::cobalt::task<void>
 Replica::leader_fsm(boost::asio::ip::tcp::socket socket) {
@@ -119,16 +119,13 @@ Replica::leader_fsm(boost::asio::ip::tcp::socket socket) {
     auto io = co_await boost::cobalt::this_coro::executor;
 
     boost::asio::steady_timer cancel{io};
-    cancel.expires_after(std::chrono::milliseconds(1000)); /* TODO */
+    // auto cancel.expires_after(std::chrono::milliseconds(1000)); /* TODO */
+    // impl.leader.cancel_timer.expires_after(std::chrono::milliseconds(1000));
 
-    boost::cobalt::spawn(io, follower_rx(move(socket)),
-                         boost::asio::use_future);
+    auto rx_coro =
+        boost::cobalt::spawn(io, follower_rx(socket), boost::asio::use_future);
 
 #if 0
-    co_await timer.async_wait(boost::cobalt::use_op);
-
-    co_return;
-
     while (true) {
         /* wait for heartbeat timeout */
         co_await timeout(150);
@@ -140,7 +137,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::socket socket) {
 
     /* become a follower after stepping down */
 
+    rx_coro.get();
+
     auto io = co_await boost::cobalt::this_coro::executor;
-    boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
+    boost::cobalt::spawn(io, follower_fsm(move(socket)), boost::asio::detached);
 #endif
 }
