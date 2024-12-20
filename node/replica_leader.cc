@@ -178,9 +178,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
 
     /* wait for connection_rx to complete */
     co_await rx_coro;
-#if 0
 
-    auto io = co_await boost::cobalt::this_coro::executor;
-    boost::cobalt::spawn(io, follower_fsm(move(socket)), boost::asio::detached);
-#endif
+    boost::cobalt::spawn(io, follower_fsm(move(acceptor)),
+                         boost::asio::detached);
 }

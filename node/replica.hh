@@ -121,7 +121,7 @@ class Replica {
 
     boost::cobalt::task<void> candidate_fsm();
     boost::cobalt::task<void> leader_fsm(boost::asio::ip::tcp::acceptor);
-    boost::cobalt::task<void> follower_fsm();
+    boost::cobalt::task<void> follower_fsm(boost::asio::ip::tcp::acceptor);
 
     template <State T>
     boost::cobalt::task<void>
@@ -161,7 +161,7 @@ class Replica {
 
         auto io = co_await boost::cobalt::this_coro::executor;
 
-        boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
+        // boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
 
         // boost::cobalt::spawn(io, rx_conn_acceptor(), boost::asio::detached);
     }

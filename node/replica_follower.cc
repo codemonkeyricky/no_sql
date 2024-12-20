@@ -68,7 +68,8 @@ Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req) {
 #endif
 }
 
-boost::cobalt::task<void> Replica::follower_fsm() {
+boost::cobalt::task<void>
+Replica::follower_fsm(boost::asio::ip::tcp::acceptor) {
 
 #if 0
     auto follower_rx_payload_handler =
