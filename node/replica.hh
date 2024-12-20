@@ -124,8 +124,8 @@ class Replica {
     boost::cobalt::task<void> follower_fsm();
 
     boost::cobalt::task<void>
-    follower_rx(boost::asio::ip::tcp::acceptor& acceptor,
-                boost::asio::steady_timer& cancel);
+    leader_rx(boost::asio::ip::tcp::acceptor& acceptor,
+              boost::asio::steady_timer& cancel);
 
   public:
     struct AppendEntryReq {
