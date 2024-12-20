@@ -122,6 +122,9 @@ Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {
 
     pstate.currentTerm = max(term, pstate.currentTerm);
 
+    /* TODO: cache leaderId */
+    /* TODO: if success, flush leaderCommit */
+
     return {s, {pstate.currentTerm, success}};
 }
 
