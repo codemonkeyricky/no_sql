@@ -86,10 +86,21 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
     }
 }
 
-boost::cobalt::task<void> follower_rx(boost::asio::ip::tcp::socket& socket) {}
+boost::cobalt::task<void> follower_rx(boost::asio::ip::tcp::acceptor& acceptor,
+                                      boost::asio::steady_timer& cancel) {
+    auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
+        boost::system::error_code ec;
+        co_await cancel.async_wait(
+            boost::asio::redirect_error(boost::cobalt::use_task, ec));
+    };
+
+    auto nx = co_await boost::cobalt::race(
+        acceptor.async_accept(boost::cobalt::use_task), wait_for_cancel());
+    switch (nx.index()) {}
+}
 
 boost::cobalt::task<void>
-Replica::leader_fsm(boost::asio::ip::tcp::socket socket) {
+Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
 
     auto leader_rx_payload_handler =
         [this](const Replica::RequestVariant& variant)
@@ -122,8 +133,8 @@ Replica::leader_fsm(boost::asio::ip::tcp::socket socket) {
     cancel.expires_after(std::chrono::milliseconds(1000)); /* TODO */
     // impl.leader.cancel_timer.expires_after(std::chrono::milliseconds(1000));
 
-    auto rx_coro =
-        boost::cobalt::spawn(io, follower_rx(socket), boost::asio::use_future);
+    auto rx_coro = boost::cobalt::spawn(io, follower_rx(acceptor, cancel),
+                                        boost::asio::use_future);
 
 #if 0
     while (true) {
@@ -134,10 +145,14 @@ Replica::leader_fsm(boost::asio::ip::tcp::socket socket) {
             break;
         }
     }
+#endif
 
     /* become a follower after stepping down */
 
+    cancel.cancel();
+
     rx_coro.get();
+#if 0
 
     auto io = co_await boost::cobalt::this_coro::executor;
     boost::cobalt::spawn(io, follower_fsm(move(socket)), boost::asio::detached);

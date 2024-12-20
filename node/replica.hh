@@ -120,7 +120,7 @@ class Replica {
     }
 
     boost::cobalt::task<void> candidate_fsm();
-    boost::cobalt::task<void> leader_fsm(boost::asio::ip::tcp::socket);
+    boost::cobalt::task<void> leader_fsm(boost::asio::ip::tcp::acceptor);
     boost::cobalt::task<void> follower_fsm();
 
   public:
