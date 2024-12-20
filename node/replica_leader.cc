@@ -65,9 +65,7 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
         reply = {pstate.currentTerm, false};
     }
 
-    if (impl.state != Replica::Follower && grant) {
-        /* if we aren't a follower but granted vote - we must step down */
-    }
+    return reply;
 }
 
 template <>
