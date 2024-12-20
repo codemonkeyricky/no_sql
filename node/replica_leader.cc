@@ -88,11 +88,15 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
 
 template <>
 auto Replica::rx_payload_handler<Replica::Leader>(
-    const Replica::RequestVariant& variant) -> boost::cobalt::task<void> {
+    const Replica::RequestVariant& variant)
+    -> boost::cobalt::task<Replica::ReplyVariant> {
+
+    ReplyVariant rv;
     switch (variant.index()) {
     case 0: {
         /* append entries */
         auto reply = co_await add_entries<Replica::Leader>(get<0>(variant));
+        rv = ReplyVariant(reply);
     } break;
     case 1: {
         // auto req = variant.value();
@@ -128,8 +132,13 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
                 boost::asio::buffer(data), boost::cobalt::use_task);
 
             /* TODO: deserialize the payload here */
-            Replica::RequestVariant variant;
-            rx_payload_handler<Leader>(variant);
+            Replica::RequestVariant req_var;
+            auto reply_var = rx_payload_handler<Leader>(req_var);
+
+            /* TODO: serialize reply_var */
+            // co_await boost::asio::async_write(
+            //     socket, boost::asio::buffer(reply.c_str(), reply.size()),
+            //     boost::cobalt::use_task);
 
         } break;
         case 1: {
@@ -152,7 +161,8 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     auto io = co_await boost::cobalt::this_coro::executor;
 
     boost::asio::steady_timer cancel_timer{io};
-    cancel_timer.expires_after(std::chrono::milliseconds(1000)); /* TODO */
+    cancel_timer.expires_after(
+        std::chrono::milliseconds(1000)); /* TODO: block forever */
 
     auto rx_coro = boost::cobalt::spawn(
         io, rx_connection<Replica::Leader>(acceptor, cancel_timer),
@@ -160,6 +170,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
 
     while (true) {
         /* wait for heartbeat timeout */
+        /* TODO: randomized timeout? */
         co_await timeout(150);
 
         if (impl.leader.step_down) {

@@ -169,6 +169,9 @@ class Replica {
     using RequestVariant =
         boost::variant2::variant<AppendEntryReq, RequestVoteReq>;
 
+    using ReplyVariant =
+        boost::variant2::variant<AppendEntryReply, RequestVoteReply>;
+
     template <State T>
     boost::cobalt::task<AppendEntryReply>
     add_entries(const AppendEntryReq& req);
@@ -226,7 +229,8 @@ class Replica {
     // }
 
     template <State T>
-    boost::cobalt::task<void> rx_payload_handler(const RequestVariant&);
+    boost::cobalt::task<Replica::ReplyVariant>
+    rx_payload_handler(const RequestVariant&);
 
     // boost::cobalt::task<void>
     // rx_payload_handler(const RequestVariant& variant) {}
