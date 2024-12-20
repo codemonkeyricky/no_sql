@@ -7,7 +7,7 @@
 using namespace std;
 
 template <>
-Replica::RequestVoteReply
+std::tuple<Replica::State, Replica::RequestVoteReply>
 Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
 
     /*
@@ -41,7 +41,8 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
 
     pstate.currentTerm = max(pstate.currentTerm, term);
 
-    return {pstate.currentTerm, grant};
+    return {grant ? Replica::Follower : impl.state,
+            {pstate.currentTerm, grant}};
 }
 
 /*
@@ -56,8 +57,8 @@ Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {
 
     /*
      * It is not possible for two leader having the same
-     * term number. If we received addEntries RPC from another leader, it must
-     * have newer or older term number.
+     * term number. If we received addEntries RPC from another leader, it
+     * must have newer or older term number.
      *
      * In the case of older term number, we reject.
      *
@@ -82,7 +83,8 @@ Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {
 
         /* find common ancester */
         if (pstate.logs.size() - 1 < prevLogIndex) {
-            /* Our log is too small. Force leader to find a common ancestor */
+            /* Our log is too small. Force leader to find a common ancestor
+             */
             success = false;
         } else if (pstate.logs[prevLogIndex].first != prevLogTerm) {
             /* log exist, but term disagrees. ask leader to keep walking
@@ -168,8 +170,8 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
                (vstate_leader.followers.size() + 1 /* leader */) / 2 + 1) {
         /*
          * If we have consensus from majority the entry is committe
-         * Majority _must_ be greater than half. In either cluster size of 4 or
-         * 5, 3 is required to be majority.
+         * Majority _must_ be greater than half. In either cluster size of 4
+         * or 5, 3 is required to be majority.
          */
 
         co_await apply_logs();
@@ -190,12 +192,8 @@ auto Replica::rx_payload_handler<Replica::Leader>(
         rv = ReplyVariant(reply);
     } break;
     case 1: {
-        auto reply = request_vote<Replica::Leader>(get<1>(variant));
+        auto [s, reply] = request_vote<Replica::Leader>(get<1>(variant));
         rv = ReplyVariant(reply);
-        if (reply.voteGranted) {
-            /* if vote granted - we must step down */
-            s = Follower;
-        }
     } break;
     }
 

@@ -5,7 +5,7 @@
 using namespace std;
 
 template <>
-Replica::RequestVoteReply
+tuple<Replica::State, Replica::RequestVoteReply>
 Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
 
     /*
@@ -30,7 +30,8 @@ Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
 
     pstate.currentTerm = max(pstate.currentTerm, term);
 
-    return {pstate.currentTerm, granted};
+    return {granted ? Replica::Follower : impl.state,
+            {pstate.currentTerm, granted}};
 }
 
 #if 0

@@ -177,7 +177,9 @@ class Replica {
 
     template <State T>
     std::tuple<State, AppendEntryReply> add_entries(const AppendEntryReq& req);
-    template <State T> RequestVoteReply request_vote(const RequestVoteReq& req);
+    template <State T>
+    std::tuple<State, RequestVoteReply>
+    request_vote(const RequestVoteReq& req);
 
     // boost::cobalt::task<AppendEntryReply>
     // leader_add_entries(const AppendEntryReq& req);
