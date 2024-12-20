@@ -102,7 +102,7 @@ auto Replica::rx_payload_handler<Replica::Leader>(
 };
 
 template <>
-boost::cobalt::task<void> Replica::connection_rx<Replica::Leader>(
+boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
     boost::asio::ip::tcp::acceptor& acceptor,
     boost::asio::steady_timer& cancel) {
 
@@ -149,19 +149,13 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     impl.state = Leader;
     impl.leader = {};
 
-    // rx_payload_handler = [&](const RequestVariant& variant) {
-    //     /* need to trampoline through a lambda because rx_payload_handler
-    //      * parameters is missing the implicit "this" argument */
-    //     return leader_rx_payload_handler(variant);
-    // };
-
     auto io = co_await boost::cobalt::this_coro::executor;
 
     boost::asio::steady_timer cancel_timer{io};
     cancel_timer.expires_after(std::chrono::milliseconds(1000)); /* TODO */
 
     auto rx_coro = boost::cobalt::spawn(
-        io, connection_rx<Replica::Leader>(acceptor, cancel_timer),
+        io, rx_connection<Replica::Leader>(acceptor, cancel_timer),
         boost::cobalt::use_task);
 
     while (true) {
@@ -174,9 +168,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     }
 
     /* become a follower after stepping down */
-    cancel_timer.cancel();
 
-    /* wait for connection_rx to complete */
+    /* wait for rx_connection to complete */
+    cancel_timer.cancel();
     co_await rx_coro;
 
     boost::cobalt::spawn(io, follower_fsm(move(acceptor)),

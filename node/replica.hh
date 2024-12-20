@@ -125,7 +125,7 @@ class Replica {
 
     template <State T>
     boost::cobalt::task<void>
-    connection_rx(boost::asio::ip::tcp::acceptor& acceptor,
+    rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
                   boost::asio::steady_timer& cancel);
 
   public:
