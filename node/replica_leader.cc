@@ -87,8 +87,8 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
 }
 
 template <>
-boost::cobalt::task<void> Replica::rx_payload_handler<Replica::Leader>(
-    const Replica::RequestVariant& variant) {
+auto Replica::rx_payload_handler<Replica::Leader>(
+    const Replica::RequestVariant& variant) -> boost::cobalt::task<void> {
     switch (variant.index()) {
     case 0: {
         /* append entries */
