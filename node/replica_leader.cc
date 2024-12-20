@@ -86,17 +86,44 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
     }
 }
 
-boost::cobalt::task<void> follower_rx(boost::asio::ip::tcp::acceptor& acceptor,
-                                      boost::asio::steady_timer& cancel) {
+boost::cobalt::task<void>
+Replica::follower_rx(boost::asio::ip::tcp::acceptor& acceptor,
+                     boost::asio::steady_timer& cancel) {
     auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
         boost::system::error_code ec;
         co_await cancel.async_wait(
             boost::asio::redirect_error(boost::cobalt::use_task, ec));
     };
 
-    auto nx = co_await boost::cobalt::race(
-        acceptor.async_accept(boost::cobalt::use_task), wait_for_cancel());
-    switch (nx.index()) {}
+    while (true) {
+
+        bool teardown = false;
+
+        auto nx = co_await boost::cobalt::race(
+            acceptor.async_accept(boost::cobalt::use_task), wait_for_cancel());
+        switch (nx.index()) {
+        case 0: {
+
+            auto& socket = get<0>(nx);
+
+            char data[1024] = {};
+            std::size_t n = co_await socket.async_read_some(
+                boost::asio::buffer(data), boost::cobalt::use_task);
+
+            Replica::RequestVariant variant;
+
+            rx_payload_handler(variant);
+
+        } break;
+        case 1: {
+            teardown = true;
+        } break;
+        }
+
+        if (teardown) {
+            break;
+        }
+    }
 }
 
 boost::cobalt::task<void>
