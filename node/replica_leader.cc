@@ -101,9 +101,11 @@ auto Replica::rx_payload_handler<Replica::Leader>(
     }
 };
 
-boost::cobalt::task<void>
-Replica::leader_rx(boost::asio::ip::tcp::acceptor& acceptor,
-                   boost::asio::steady_timer& cancel) {
+template <>
+boost::cobalt::task<void> Replica::connection_rx<Replica::Leader>(
+    boost::asio::ip::tcp::acceptor& acceptor,
+    boost::asio::steady_timer& cancel) {
+
     auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
         boost::system::error_code ec;
         co_await cancel.async_wait(
@@ -158,8 +160,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     boost::asio::steady_timer cancel_timer{io};
     cancel_timer.expires_after(std::chrono::milliseconds(1000)); /* TODO */
 
-    auto rx_coro = boost::cobalt::spawn(io, leader_rx(acceptor, cancel_timer),
-                                        boost::cobalt::use_task);
+    auto rx_coro = boost::cobalt::spawn(
+        io, connection_rx<Replica::Leader>(acceptor, cancel_timer),
+        boost::cobalt::use_task);
 
     while (true) {
         /* wait for heartbeat timeout */
@@ -173,7 +176,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     /* become a follower after stepping down */
     cancel_timer.cancel();
 
-    /* wait for leader_rx to complete */
+    /* wait for connection_rx to complete */
     co_await rx_coro;
 #if 0
 
