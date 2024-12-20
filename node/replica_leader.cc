@@ -69,11 +69,60 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
 }
 
 template <>
-Replica::AppendEntryReply
+tuple<Replica::State, Replica::AppendEntryReply>
 Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {
 
     auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit, entry] =
         req;
+
+    Replica::AppendEntryReply reply = {};
+
+    /*
+     * two things to decide:
+     *  1. do we need to transition to follower
+     *  2. do we need to ask leader to walk backwards in history
+     */
+
+    /*
+     * If we are a follower
+     *  Only need to worry about history convergence
+     *
+     * If we are a leader
+     *  Two leader must have different term number. So either we step down or
+     * reject.
+     *
+     * If we are a candidate
+     *  Must be getting this from a leader. Is it possible for a leader to have
+     * same term but less history? Either the leader is stale or we revert.
+     */
+
+    bool success = true;
+    Replica::State s = impl.state;
+    if (term < pstate.currentTerm) {
+        /* request came from leader with stale term - reject */
+        return {s, {pstate.currentTerm, false}};
+    } else if (term > pstate.currentTerm) {
+        /* we are stale - revert to follower */
+        s = Replica::Follower;
+
+        /* find common ancester */
+        if (pstate.logs.size() - 1 < prevLogIndex) {
+            /* Our log is too small. Force leader to find a common ancestor */
+            success = false;
+        } else if (pstate.logs[prevLogIndex].first != prevLogTerm) {
+            /* log exist, but term disagrees. update history to match leader */
+            pstate.logs.resize(prevLogIndex);
+            success = false;
+        }
+
+    } else {
+        /* not possible having two leader with the same term */
+        assert(0);
+    }
+
+    pstate.currentTerm = max(term, pstate.currentTerm);
+
+    return {s, {pstate.currentTerm, success}};
 }
 
 static boost::cobalt::task<Replica::AppendEntryReply>
@@ -158,7 +207,7 @@ auto Replica::rx_payload_handler<Replica::Leader>(
     switch (variant.index()) {
     case 0: {
         /* append entries */
-        auto reply = add_entries<Replica::Leader>(get<0>(variant));
+        auto [s, reply] = add_entries<Replica::Leader>(get<0>(variant));
         rv = ReplyVariant(reply);
     } break;
     case 1: {

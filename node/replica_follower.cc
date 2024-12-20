@@ -1,5 +1,6 @@
 #include "node/replica.hh"
 
+#if 0
 template <>
 Replica::RequestVoteReply
 Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& req) {}
@@ -67,6 +68,7 @@ Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req) {
     co_return {pstate.currentTerm, true};
 #endif
 }
+#endif
 
 boost::cobalt::task<void>
 Replica::follower_fsm(boost::asio::ip::tcp::acceptor) {

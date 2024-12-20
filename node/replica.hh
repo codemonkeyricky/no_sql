@@ -173,7 +173,8 @@ class Replica {
     using ReplyVariant =
         boost::variant2::variant<AppendEntryReply, RequestVoteReply>;
 
-    template <State T> AppendEntryReply add_entries(const AppendEntryReq& req);
+    template <State T>
+    std::tuple<State, AppendEntryReply> add_entries(const AppendEntryReq& req);
     template <State T> RequestVoteReply request_vote(const RequestVoteReq& req);
 
     // boost::cobalt::task<AppendEntryReply>

@@ -4,6 +4,7 @@
 
 using namespace std;
 
+#if 0
 template <>
 Replica::RequestVoteReply
 Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
@@ -58,6 +59,7 @@ Replica::add_entries<Replica::Candidate>(const Replica::AppendEntryReq& req) {
     }
     #endif
 }
+#endif
 
 static boost::cobalt::task<Replica::RequestVoteReply>
 request_vote_from_peer(std::string peer_addr) {
