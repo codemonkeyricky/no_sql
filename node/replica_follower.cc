@@ -35,14 +35,14 @@ Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& req) {
     if (term < pstate.currentTerm) {
         /* We have seen higher term - reject */
     } else {
-#if 0
         /* compare logs */
-        if (pstate.voteFor == nullopt || *pstate.votedFor == candidateId) {
+        if (pstate.votedFor == std::nullopt)
+        //  *pstate.votedFor == candidateId) {
+        {
             /* It's possible for the candidate to "lose" the previous reply due
              * to unfavourable network conditions */
             grant = at_least_as_up_to_date_as_me(lastLogIndex, lastLogTerm);
         }
-#endif
     }
 
     pstate.currentTerm = std::max(pstate.currentTerm, term);
