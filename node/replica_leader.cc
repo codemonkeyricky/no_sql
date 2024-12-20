@@ -29,35 +29,19 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
 
     Replica::RequestVoteReply reply = {};
 
+    /* under no scenario should we cache a vote as leader - we either reject or
+     * vote and step down */
     assert(impl.votedFor == nullopt);
-
-    // if (impl.votedFor) {
-    //     /* already voted! */
-    //     return {pstate.currentTerm, false};
-    // }
 
     bool grant = false;
     if (term > pstate.currentTerm) {
-
         /* grant vote and become a follower */
         grant = true;
-
-    } else if (term < pstate.currentTerm) {
-        /* ignore */
-
-    } else {
-        /* not possible to receive a requestVote of the same term if we are
-         * already leader */
-        assert(0);
     }
 
-    if (grant) {
-        reply = {term, true};
-    } else {
-        reply = {pstate.currentTerm, false};
-    }
+    pstate.currentTerm = max(pstate.currentTerm, term);
 
-    return reply;
+    return {pstate.currentTerm, grant};
 }
 
 /*
