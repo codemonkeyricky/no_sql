@@ -4,6 +4,35 @@
 
 using namespace std;
 
+template <>
+Replica::RequestVoteReply
+Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
+
+    /*
+     * If we are a candidate, we have already voted for ourselves. However, we
+     * can still go back to follower state if new leader or higher term election
+     * started.
+     *
+     * If we receive requestVote RPC as a candidate:
+     *  1. The other candidiate is starting a new term - in which cas we drop
+     *     back to follower.
+     *  2. The other candidate is competing for a stale term - ignore.
+     *  3. The other candidate is competing for the same term - don't care as we
+     *     already voted ourselves.
+     */
+
+    auto& [term, candidateId, lastLogIndex, lastLogTerm] = req;
+
+    bool granted = false;
+    if (term > pstate.currentTerm) {
+        granted = true;
+    }
+
+    pstate.currentTerm = max(pstate.currentTerm, term);
+
+    return {pstate.currentTerm, granted};
+}
+
 #if 0
         /* same term - compare log completeness */
 

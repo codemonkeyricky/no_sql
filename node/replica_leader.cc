@@ -31,12 +31,12 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
 
     /* under no scenario should we cache a vote as leader - we either reject or
      * vote and step down */
-    assert(impl.votedFor == nullopt);
 
     bool grant = false;
     if (term > pstate.currentTerm) {
         /* grant vote and become a follower */
         grant = true;
+        impl.votedFor = candidateId;
     }
 
     pstate.currentTerm = max(pstate.currentTerm, term);
