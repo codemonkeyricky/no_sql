@@ -20,11 +20,9 @@ bool Replica::at_least_as_up_to_date_as_me(int peer_last_log_index,
         return false;
     }
 
-#if 0
     else /* same */ {
         return peer_last_log_index + 1 >= pstate.logs.size();
     }
-#endif
 }
 
 template <>
