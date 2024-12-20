@@ -68,33 +68,43 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
     return reply;
 }
 
+/*
+ * two things to decide:
+ *  1. do we need to transition to follower
+ *  2. do we need to ask leader to walk backwards in history
+ */
+
+/*
+ * If we are a follower
+ *  Only need to worry about history convergence
+ *
+
+ *
+ * If we are a candidate
+ *  Must be getting this from a leader. Is it possible for a leader to have
+ * same term but less history? Either the leader is stale or we revert.
+ */
+
 template <>
 tuple<Replica::State, Replica::AppendEntryReply>
 Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {
+
+    /*
+     * It is not possible for two leader having the same
+     * term number. If we received addEntries RPC from another leader, it must
+     * have newer or older term number.
+     *
+     * In the case of older term number, we reject.
+     *
+     * In the case of new term number, we step down but *may* need to
+     * force new leader to walk logs backwards until common history is
+     * identified.
+     */
 
     auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit, entry] =
         req;
 
     Replica::AppendEntryReply reply = {};
-
-    /*
-     * two things to decide:
-     *  1. do we need to transition to follower
-     *  2. do we need to ask leader to walk backwards in history
-     */
-
-    /*
-     * If we are a follower
-     *  Only need to worry about history convergence
-     *
-     * If we are a leader
-     *  Two leader must have different term number. So either we step down or
-     * reject.
-     *
-     * If we are a candidate
-     *  Must be getting this from a leader. Is it possible for a leader to have
-     * same term but less history? Either the leader is stale or we revert.
-     */
 
     bool success = true;
     Replica::State s = impl.state;
