@@ -23,9 +23,23 @@ Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
 
     auto& [term, candidateId, lastLogIndex, lastLogTerm] = req;
 
+    /* compare logs */
     bool granted = false;
-    if (term > pstate.currentTerm) {
+    if (pstate.logs.empty()) {
+        /* log is empty, assume the other candidate is more up to date */
         granted = true;
+    } else if (pstate.logs.back().first > lastLogTerm) {
+        /* we are more up to date - ignore */
+    } else if (pstate.logs.back().first == lastLogTerm) {
+        /* Grant vote if the other candidate is more up to date */
+        granted = pstate.logs.size() < lastLogIndex;
+    } else {
+        /* the other candidate has more history */
+        granted = true;
+    }
+
+    if (granted) {
+        // pstate.votedFor = (int)candidateId;
     }
 
     pstate.currentTerm = max(pstate.currentTerm, term);
