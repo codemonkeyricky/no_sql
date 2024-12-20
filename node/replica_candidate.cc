@@ -48,98 +48,52 @@ Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
             {pstate.currentTerm, granted}};
 }
 
-#if 0
-        /* same term - compare log completeness */
-
-        if (pstate.logs.empty()) {
-            /* we have no logs */
-            grant = true;
-        } else if (pstate.logs.back().first < lastLogTerm) {
-            /* candidate's log is more recent */
-            grant = true;
-        } else if (pstate.logs.back().first == lastLogTerm) {
-            if (pstate.logs.size() + 1 < lastLogIndex) {
-                /* candidate has more logs on the same term */
-                grant = true;
-            } else if (pstate.logs.size() + 1 == lastLogIndex) {
-                /*
-                 * TODO: is this possible?
-                 * If we suffer a network outage and came back online - the new
-                 * campaign will have a newer term. No one should be competing.
-                 *
-                 * It's possible if two followers both become candidates at the
-                 * same time and compete for votes? But in this case the
-                 * candidates would have voted for themselves and deny the
-                 * request. We shouldn't get to the log comparison part.
-                 */
-            } else {
-                /* we have more log - reject */
-            }
-        }
-#endif
-
-/*
- * If we are a candidate
- *  Must be getting this from a leader. Is it possible for a leader to have
- * same term but less history? Either the leader is stale or we revert.
- */
-
-#if 0
 template <>
-Replica::RequestVoteReply
-Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
-
-    // struct RequestVoteReq {
-    //     int term;
-    //     std::string candidateId;
-    //     int lastLogIndex;
-    //     int lastLogTerm;
-
-    if (req.term < pstate.currentTerm) {
-        /* request is stale */
-        return {pstate.currentTerm, false};
-    }
-
-    if (!impl.votedFor) {
-        /* already voted */
-        return {pstate.currentTerm, false};
-    }
-
-    if (pstate.logs.size() > req.lastLogIndex + 1) {
-        /* candidate has less logs than me */
-        return {pstate.currentTerm, false};
-    }
-
-    if (pstate.logs.size() >= req.lastLogIndex + 1 &&
-        pstate.logs[req.lastLogIndex].first != req.lastLogTerm) {
-        /* candidate's log disagree with mine */
-        return {pstate.currentTerm, false};
-    }
-
-    return {pstate.currentTerm, true};
-}
-
-template <>
-Replica::AppendEntryReply
+tuple<Replica::State, Replica::AppendEntryReply>
 Replica::add_entries<Replica::Candidate>(const Replica::AppendEntryReq& req) {
 
-    // int term;
-    // std::string leaderId;
-    // int prevLogIndex;
-    // int prevLogTerm;
-    // int leaderCommit;
-    // std::optional<std::array<std::string, 2>> entry; /* key / value*/
+    auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit, entry] =
+        req;
 
-#if 0
-    if (req.term < pstate.currentTerm) {
-        /* leader is stale - reject */
-        co_return {pstate.term, false};
+    /*
+     * Raft paper 5.2:
+     *
+     * While waiting for votes, a candidate may receive an
+     * AppendEntries RPC from another server claiming to be
+     * leader. If the leader’s term (included in its RPC) is at least
+     * as large as the candidate’s current term, then the candidate
+     * recognizes the leader as legitimate and returns to follower
+     * state. If the term in the RPC is smaller than the candidate’s
+     * current term, then the candidate rejects the RPC and con-
+     * tinues in candidate state.
+     */
+
+    if (term >= pstate.currentTerm) {
+        /* recognize leader - drop down to follower */
+
+        /* however, may need to force leader to walk history backwards */
+
+        /* find common ancester */
+        bool success = false;
+        if (pstate.logs.size() - 1 < prevLogIndex) {
+            /* Our log is too small. Force leader to find a common ancestor
+             */
+            success = false;
+        } else if (pstate.logs[prevLogIndex].first != prevLogTerm) {
+            /* log exist, but term disagrees. ask leader to keep walking
+             * backwards to find common history */
+            pstate.logs.resize(prevLogIndex);
+            success = false;
+        }
+
+        pstate.currentTerm = max(pstate.currentTerm, term);
+
+        return {Replica::Follower, {pstate.currentTerm, success}};
     } else {
-        /* we are stale. abandon the campaign and become a follower */
+        /* Current leader is stale - reject */
+        return {impl.state, {pstate.currentTerm, false}};
     }
-#endif
 }
-#endif
 
 static boost::cobalt::task<Replica::RequestVoteReply>
 request_vote_from_peer(std::string peer_addr) {
