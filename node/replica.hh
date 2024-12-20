@@ -162,7 +162,7 @@ class Replica {
 
         boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
 
-        boost::cobalt::spawn(io, rx_conn_acceptor(), boost::asio::detached);
+        // boost::cobalt::spawn(io, rx_conn_acceptor(), boost::asio::detached);
     }
 
     using RequestVariant =
@@ -208,28 +208,29 @@ class Replica {
         co_return;
     }
 
-    boost::cobalt::task<void> rx_conn_acceptor() {
+    // boost::cobalt::task<void> rx_conn_acceptor() {
 
-        auto io = co_await boost::cobalt::this_coro::executor;
+    //     auto io = co_await boost::cobalt::this_coro::executor;
 
-        /* TODO: extract port from my_addr */
-        boost::asio::ip::tcp::acceptor acceptor(
-            io, {boost::asio::ip::tcp::v4(), 5555});
+    //     /* TODO: extract port from my_addr */
+    //     boost::asio::ip::tcp::acceptor acceptor(
+    //         io, {boost::asio::ip::tcp::v4(), 5555});
 
-        for (;;) {
-            auto socket =
-                co_await acceptor.async_accept(boost::cobalt::use_task);
-            boost::cobalt::spawn(io, rx_conn_handler(std::move(socket)),
-                                 boost::asio::detached);
-        }
-    }
+    //     for (;;) {
+    //         auto socket =
+    //             co_await acceptor.async_accept(boost::cobalt::use_task);
+    //         boost::cobalt::spawn(io, rx_conn_handler(std::move(socket)),
+    //                              boost::asio::detached);
+    //     }
+    // }
 
-    std::function<boost::cobalt::task<void>(const RequestVariant&)>
-        rx_payload_handler;
+    template <State T>
+    boost::cobalt::task<void> rx_payload_handler(const RequestVariant&);
 
     // boost::cobalt::task<void>
     // rx_payload_handler(const RequestVariant& variant) {}
 
+#if 0
     boost::cobalt::task<void>
     rx_conn_handler(boost::asio::ip::tcp::socket socket) {
 
@@ -265,4 +266,5 @@ class Replica {
         //             break;
         //         }
     }
+#endif
 };

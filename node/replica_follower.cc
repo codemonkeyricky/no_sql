@@ -70,6 +70,7 @@ Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req) {
 
 boost::cobalt::task<void> Replica::follower_fsm() {
 
+#if 0
     auto follower_rx_payload_handler =
         [this](const Replica::RequestVariant& variant)
         -> boost::cobalt::task<void> {
@@ -109,4 +110,5 @@ boost::cobalt::task<void> Replica::follower_fsm() {
 
     auto io = co_await boost::cobalt::this_coro::executor;
     boost::cobalt::spawn(io, candidate_fsm(), boost::asio::detached);
+#endif
 }

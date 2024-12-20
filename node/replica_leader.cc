@@ -86,6 +86,21 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
     }
 }
 
+template <>
+boost::cobalt::task<void> Replica::rx_payload_handler<Replica::Leader>(
+    const Replica::RequestVariant& variant) {
+    switch (variant.index()) {
+    case 0: {
+        /* append entries */
+        auto reply = co_await add_entries<Replica::Leader>(get<0>(variant));
+    } break;
+    case 1: {
+        // auto req = variant.value();
+        auto reply = co_await request_vote<Replica::Leader>(get<1>(variant));
+    } break;
+    }
+};
+
 boost::cobalt::task<void>
 Replica::leader_rx(boost::asio::ip::tcp::acceptor& acceptor,
                    boost::asio::steady_timer& cancel) {
@@ -110,9 +125,9 @@ Replica::leader_rx(boost::asio::ip::tcp::acceptor& acceptor,
             std::size_t n = co_await socket.async_read_some(
                 boost::asio::buffer(data), boost::cobalt::use_task);
 
+            /* TODO: deserialize the payload here */
             Replica::RequestVariant variant;
-
-            rx_payload_handler(variant);
+            rx_payload_handler<Leader>(variant);
 
         } break;
         case 1: {
@@ -129,30 +144,14 @@ Replica::leader_rx(boost::asio::ip::tcp::acceptor& acceptor,
 boost::cobalt::task<void>
 Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
 
-    auto leader_rx_payload_handler =
-        [this](const Replica::RequestVariant& variant)
-        -> boost::cobalt::task<void> {
-        switch (variant.index()) {
-        case 0: {
-            /* append entries */
-            auto reply = co_await add_entries<Replica::Leader>(get<0>(variant));
-        } break;
-        case 1: {
-            // auto req = variant.value();
-            auto reply =
-                co_await request_vote<Replica::Leader>(get<1>(variant));
-        } break;
-        }
-    };
-
     impl.state = Leader;
     impl.leader = {};
 
-    rx_payload_handler = [&](const RequestVariant& variant) {
-        /* need to trampoline through a lambda because rx_payload_handler
-         * parameters is missing the implicit "this" argument */
-        return leader_rx_payload_handler(variant);
-    };
+    // rx_payload_handler = [&](const RequestVariant& variant) {
+    //     /* need to trampoline through a lambda because rx_payload_handler
+    //      * parameters is missing the implicit "this" argument */
+    //     return leader_rx_payload_handler(variant);
+    // };
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -162,7 +161,6 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     auto rx_coro = boost::cobalt::spawn(io, leader_rx(acceptor, cancel_timer),
                                         boost::cobalt::use_task);
 
-#if 0
     while (true) {
         /* wait for heartbeat timeout */
         co_await timeout(150);
@@ -171,7 +169,6 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
             break;
         }
     }
-#endif
 
     /* become a follower after stepping down */
     cancel_timer.cancel();
