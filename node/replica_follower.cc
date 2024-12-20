@@ -16,10 +16,12 @@ bool Replica::at_least_as_up_to_date_as_me(int peer_last_log_index,
         return true;
     }
 
-#if 0
     else if (pstate.logs.back().first > peer_last_log_term) {
         return false;
-    } else /* same */ {
+    }
+
+#if 0
+    else /* same */ {
         return peer_last_log_index + 1 >= pstate.logs.size();
     }
 #endif
