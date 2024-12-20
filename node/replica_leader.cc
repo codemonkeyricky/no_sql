@@ -129,12 +129,11 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
-    boost::asio::steady_timer cancel{io};
-    cancel.expires_after(std::chrono::milliseconds(1000)); /* TODO */
-    // impl.leader.cancel_timer.expires_after(std::chrono::milliseconds(1000));
+    boost::asio::steady_timer cancel_timer{io};
+    cancel_timer.expires_after(std::chrono::milliseconds(1000)); /* TODO */
 
-    auto rx_coro = boost::cobalt::spawn(io, follower_rx(acceptor, cancel),
-                                        boost::asio::use_future);
+    auto rx_coro = boost::cobalt::spawn(io, follower_rx(acceptor, cancel_timer),
+                                        boost::cobalt::use_task);
 
 #if 0
     while (true) {
@@ -148,10 +147,10 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
 #endif
 
     /* become a follower after stepping down */
+    cancel_timer.cancel();
 
-    cancel.cancel();
-
-    rx_coro.get();
+    /* wait for follower_rx to complete */
+    co_await rx_coro;
 #if 0
 
     auto io = co_await boost::cobalt::this_coro::executor;
