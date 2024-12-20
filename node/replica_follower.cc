@@ -1,5 +1,10 @@
 #include "node/replica.hh"
 
+/*
+ * If we are a follower
+ *  Only need to worry about history convergence
+ */
+
 #if 0
 template <>
 Replica::RequestVoteReply
@@ -10,9 +15,9 @@ Replica::AppendEntryReply
 Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req) {
 
     /* Receiver implementation 1 */
-    if (req.term < pstate.currentTerm) {
-        return Replica::AppendEntryReply{pstate.currentTerm, false};
-    }
+if (req.term < pstate.currentTerm) {
+    return Replica::AppendEntryReply{pstate.currentTerm, false};
+}
 #if 0
 
     /* Receiver implementation 2 */

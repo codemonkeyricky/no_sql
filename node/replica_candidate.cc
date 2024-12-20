@@ -4,6 +4,12 @@
 
 using namespace std;
 
+/*
+ * If we are a candidate
+ *  Must be getting this from a leader. Is it possible for a leader to have
+ * same term but less history? Either the leader is stale or we revert.
+ */
+
 #if 0
 template <>
 Replica::RequestVoteReply
@@ -57,7 +63,7 @@ Replica::add_entries<Replica::Candidate>(const Replica::AppendEntryReq& req) {
     } else {
         /* we are stale. abandon the campaign and become a follower */
     }
-    #endif
+#endif
 }
 #endif
 

@@ -74,17 +74,6 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
  *  2. do we need to ask leader to walk backwards in history
  */
 
-/*
- * If we are a follower
- *  Only need to worry about history convergence
- *
-
- *
- * If we are a candidate
- *  Must be getting this from a leader. Is it possible for a leader to have
- * same term but less history? Either the leader is stale or we revert.
- */
-
 template <>
 tuple<Replica::State, Replica::AppendEntryReply>
 Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {
