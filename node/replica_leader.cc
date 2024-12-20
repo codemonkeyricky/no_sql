@@ -178,27 +178,27 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
     }
 }
 
-template <>
-auto Replica::rx_payload_handler<Replica::Leader>(
-    const Replica::RequestVariant& variant)
-    -> tuple<State, Replica::ReplyVariant> {
+// template <>
+// auto Replica::rx_payload_handler<Replica::Leader>(
+//     const Replica::RequestVariant& variant)
+//     -> tuple<State, Replica::ReplyVariant> {
 
-    State s = impl.state;
-    ReplyVariant rv;
-    switch (variant.index()) {
-    case 0: {
-        /* append entries */
-        auto [s, reply] = add_entries<Replica::Leader>(get<0>(variant));
-        rv = ReplyVariant(reply);
-    } break;
-    case 1: {
-        auto [s, reply] = request_vote<Replica::Leader>(get<1>(variant));
-        rv = ReplyVariant(reply);
-    } break;
-    }
+//     State s = impl.state;
+//     ReplyVariant rv;
+//     switch (variant.index()) {
+//     case 0: {
+//         /* append entries */
+//         auto [s, reply] = add_entries<Replica::Leader>(get<0>(variant));
+//         rv = ReplyVariant(reply);
+//     } break;
+//     case 1: {
+//         auto [s, reply] = request_vote<Replica::Leader>(get<1>(variant));
+//         rv = ReplyVariant(reply);
+//     } break;
+//     }
 
-    return {s, rv};
-};
+//     return {s, rv};
+// };
 
 template <>
 boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
