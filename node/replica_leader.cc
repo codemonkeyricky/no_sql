@@ -110,7 +110,8 @@ Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {
             /* Our log is too small. Force leader to find a common ancestor */
             success = false;
         } else if (pstate.logs[prevLogIndex].first != prevLogTerm) {
-            /* log exist, but term disagrees. update history to match leader */
+            /* log exist, but term disagrees. ask leader to keep walking
+             * backwards to find common history */
             pstate.logs.resize(prevLogIndex);
             success = false;
         }
