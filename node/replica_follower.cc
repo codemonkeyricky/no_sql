@@ -5,11 +5,55 @@
  *  Only need to worry about history convergence
  */
 
-#if 0
-template <>
-Replica::RequestVoteReply
-Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& req) {}
+bool Replica::at_least_as_up_to_date_as_me(int peer_last_log_index,
+                                           int peer_last_log_term) {
 
+#if 0
+    if (pstate.logs.empty()) {
+        /* peer can only be same or more recent */
+        return true;
+    } else if (pstate.logs.back().first < peer_last_log_term) {
+        /* my log isn't recent */
+        return true;
+    } else if (pstate.logs.back().first > peer_last_log_term) {
+        return false;
+    } else /* same */ {
+        return peer_last_log_index + 1 >= pstate.logs.size();
+    }
+#endif
+}
+
+template <>
+std::tuple<Replica::State, Replica::RequestVoteReply>
+Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& req) {
+    auto& [term, candidateId, lastLogIndex, lastLogTerm] = req;
+
+    bool grant = false;
+
+#if 0
+    if (term < pstate.currentTerm) {
+        /* We have seen higher term - reject */
+    } else {
+        /* compare logs */
+        if (pstate.voteFor == nullopt || *pstate.votedFor == candidateId) {
+            /* It's possible for the candidate to "lose" the previous reply due
+             * to unfavourable network conditions */
+            grant = at_least_as_up_to_date_as_me(lastLogIndex, lastLogTerm);
+        }
+    }
+
+    pstate.currentTerm = std::max(pstate.currentTerm, term);
+
+    return {Replica::Follower, {pstate.currentTerm, grant}};
+#endif
+}
+
+// template <>
+// std::tuple<Replica::State, Replica::AppendEntryReply>
+// Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req)
+// {}
+
+#if 0
 template <>
 Replica::AppendEntryReply
 Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req) {

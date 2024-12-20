@@ -271,4 +271,7 @@ class Replica {
         //         }
     }
 #endif
+
+    bool at_least_as_up_to_date_as_me(int peer_last_log_index,
+                                      int peer_last_log_term);
 };
