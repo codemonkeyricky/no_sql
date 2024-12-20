@@ -1,16 +1,16 @@
 #include "node/replica.hh"
 
 template <>
-boost::cobalt::task<Replica::RequestVoteReply>
+Replica::RequestVoteReply
 Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& req) {}
 
 template <>
-boost::cobalt::task<Replica::AppendEntryReply>
+Replica::AppendEntryReply
 Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req) {
 
     /* Receiver implementation 1 */
     if (req.term < pstate.currentTerm) {
-        co_return Replica::AppendEntryReply{pstate.currentTerm, false};
+        return Replica::AppendEntryReply{pstate.currentTerm, false};
     }
 #if 0
 

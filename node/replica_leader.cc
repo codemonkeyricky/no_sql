@@ -7,11 +7,71 @@
 using namespace std;
 
 template <>
-boost::cobalt::task<Replica::RequestVoteReply>
-Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {}
+Replica::RequestVoteReply
+Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
+
+    auto& [term, candidateId, lastLogIndex, lastLogTerm] = req;
+
+    Replica::RequestVoteReply reply = {};
+
+    if (impl.votedFor) {
+        /* already voted! */
+        return {pstate.currentTerm, false};
+    }
+
+    bool grant = false;
+    if (term > pstate.currentTerm) {
+
+        /* grant vote and become a follower */
+        grant = true;
+
+    } else if (term == pstate.currentTerm) {
+
+        /* same term - compare log completeness */
+
+        if (pstate.logs.empty()) {
+            /* we have no logs */
+            grant = true;
+        } else if (pstate.logs.back().first < lastLogTerm) {
+            /* candidate's log is more recent */
+            grant = true;
+        } else if (pstate.logs.back().first == lastLogTerm) {
+            if (pstate.logs.size() + 1 < lastLogIndex) {
+                /* candidate has more logs on the same term */
+                grant = true;
+            } else if (pstate.logs.size() + 1 == lastLogIndex) {
+                /*
+                 * TODO: is this possible?
+                 * If we suffer a network outage and came back online - the new
+                 * campaign will have a newer term. No one should be competing.
+                 *
+                 * It's possible if two followers both become candidates at the
+                 * same time and compete for votes? But in this case the
+                 * candidates would have voted for themselves and deny the
+                 * request. We shouldn't get to the log comparison part.
+                 */
+            } else {
+                /* we have more log - reject */
+            }
+        }
+
+    } else {
+        /* we are more up to date */
+    }
+
+    if (grant) {
+        reply = {term, true};
+    } else {
+        reply = {pstate.currentTerm, false};
+    }
+
+    if (impl.state != Replica::Follower && grant) {
+        /* if we aren't a follower but granted vote - we must step down */
+    }
+}
 
 template <>
-boost::cobalt::task<Replica::AppendEntryReply>
+Replica::AppendEntryReply
 Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {}
 
 static boost::cobalt::task<Replica::AppendEntryReply>
@@ -89,23 +149,27 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
 template <>
 auto Replica::rx_payload_handler<Replica::Leader>(
     const Replica::RequestVariant& variant)
-    -> boost::cobalt::task<Replica::ReplyVariant> {
+    -> tuple<State, Replica::ReplyVariant> {
 
+    State s = impl.state;
     ReplyVariant rv;
     switch (variant.index()) {
     case 0: {
         /* append entries */
-        auto reply = co_await add_entries<Replica::Leader>(get<0>(variant));
+        auto reply = add_entries<Replica::Leader>(get<0>(variant));
         rv = ReplyVariant(reply);
     } break;
     case 1: {
-        // auto req = variant.value();
-        auto reply = co_await request_vote<Replica::Leader>(get<1>(variant));
+        auto reply = request_vote<Replica::Leader>(get<1>(variant));
         rv = ReplyVariant(reply);
+        if (reply.voteGranted) {
+            /* if vote granted - we must step down */
+            s = Follower;
+        }
     } break;
     }
 
-    co_return rv;
+    return {s, rv};
 };
 
 template <>

@@ -30,13 +30,14 @@
 // #include <boost/variant2/variant.hpp>
 
 class Replica {
-
+  public:
     enum State {
         Follower,
         Candidate,
         Leader,
     };
 
+  private:
     /* Raft protocol requirement */
 
     struct PersistentState {
@@ -172,12 +173,8 @@ class Replica {
     using ReplyVariant =
         boost::variant2::variant<AppendEntryReply, RequestVoteReply>;
 
-    template <State T>
-    boost::cobalt::task<AppendEntryReply>
-    add_entries(const AppendEntryReq& req);
-    template <State T>
-    boost::cobalt::task<RequestVoteReply>
-    request_vote(const RequestVoteReq& req);
+    template <State T> AppendEntryReply add_entries(const AppendEntryReq& req);
+    template <State T> RequestVoteReply request_vote(const RequestVoteReq& req);
 
     // boost::cobalt::task<AppendEntryReply>
     // leader_add_entries(const AppendEntryReq& req);
@@ -229,11 +226,8 @@ class Replica {
     // }
 
     template <State T>
-    boost::cobalt::task<Replica::ReplyVariant>
+    std::tuple<State, Replica::ReplyVariant>
     rx_payload_handler(const RequestVariant&);
-
-    // boost::cobalt::task<void>
-    // rx_payload_handler(const RequestVariant& variant) {}
 
 #if 0
     boost::cobalt::task<void>

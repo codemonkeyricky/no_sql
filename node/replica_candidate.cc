@@ -5,7 +5,7 @@
 using namespace std;
 
 template <>
-boost::cobalt::task<Replica::RequestVoteReply>
+Replica::RequestVoteReply
 Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
 
     // struct RequestVoteReq {
@@ -16,30 +16,30 @@ Replica::request_vote<Replica::Candidate>(const Replica::RequestVoteReq& req) {
 
     if (req.term < pstate.currentTerm) {
         /* request is stale */
-        co_return {pstate.currentTerm, false};
+        return {pstate.currentTerm, false};
     }
 
     if (!impl.votedFor) {
         /* already voted */
-        co_return {pstate.currentTerm, false};
+        return {pstate.currentTerm, false};
     }
 
     if (pstate.logs.size() > req.lastLogIndex + 1) {
         /* candidate has less logs than me */
-        co_return {pstate.currentTerm, false};
+        return {pstate.currentTerm, false};
     }
 
     if (pstate.logs.size() >= req.lastLogIndex + 1 &&
         pstate.logs[req.lastLogIndex].first != req.lastLogTerm) {
         /* candidate's log disagree with mine */
-        co_return {pstate.currentTerm, false};
+        return {pstate.currentTerm, false};
     }
 
-    co_return {pstate.currentTerm, true};
+    return {pstate.currentTerm, true};
 }
 
 template <>
-boost::cobalt::task<Replica::AppendEntryReply>
+Replica::AppendEntryReply
 Replica::add_entries<Replica::Candidate>(const Replica::AppendEntryReq& req) {
 
     // int term;
