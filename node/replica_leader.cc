@@ -10,14 +10,31 @@ template <>
 Replica::RequestVoteReply
 Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
 
+    /*
+     * It is not possible for two leader having the same
+     * term number. If we are a leader and received requestVote RPC from a
+     * candidate, there are 3 possibilities:
+     *  1. Candidate is campaigning a new term. This may happen if we suffered a
+     *     network outage and another node decided to campaign for leadership.
+     *  2. Candidate suffered a network outage and just came back online -
+     *     campaigning for the same term not realizing we already won.
+     *  3. Candidate is stale and campaigning for a stale term.
+     *
+     * As a leader we reject 2 and 3, and accept 1 and transition into Follower.
+     * We don't care about lastLogIndex and lastLogTerm - those are for decision
+     * making if we are a candidate.
+     */
+
     auto& [term, candidateId, lastLogIndex, lastLogTerm] = req;
 
     Replica::RequestVoteReply reply = {};
 
-    if (impl.votedFor) {
-        /* already voted! */
-        return {pstate.currentTerm, false};
-    }
+    assert(impl.votedFor == nullopt);
+
+    // if (impl.votedFor) {
+    //     /* already voted! */
+    //     return {pstate.currentTerm, false};
+    // }
 
     bool grant = false;
     if (term > pstate.currentTerm) {
@@ -25,38 +42,13 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
         /* grant vote and become a follower */
         grant = true;
 
-    } else if (term == pstate.currentTerm) {
-
-        /* same term - compare log completeness */
-
-        if (pstate.logs.empty()) {
-            /* we have no logs */
-            grant = true;
-        } else if (pstate.logs.back().first < lastLogTerm) {
-            /* candidate's log is more recent */
-            grant = true;
-        } else if (pstate.logs.back().first == lastLogTerm) {
-            if (pstate.logs.size() + 1 < lastLogIndex) {
-                /* candidate has more logs on the same term */
-                grant = true;
-            } else if (pstate.logs.size() + 1 == lastLogIndex) {
-                /*
-                 * TODO: is this possible?
-                 * If we suffer a network outage and came back online - the new
-                 * campaign will have a newer term. No one should be competing.
-                 *
-                 * It's possible if two followers both become candidates at the
-                 * same time and compete for votes? But in this case the
-                 * candidates would have voted for themselves and deny the
-                 * request. We shouldn't get to the log comparison part.
-                 */
-            } else {
-                /* we have more log - reject */
-            }
-        }
+    } else if (term < pstate.currentTerm) {
+        /* ignore */
 
     } else {
-        /* we are more up to date */
+        /* not possible to receive a requestVote of the same term if we are
+         * already leader */
+        assert(0);
     }
 
     if (grant) {

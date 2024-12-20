@@ -4,6 +4,36 @@
 
 using namespace std;
 
+#if 0
+        /* same term - compare log completeness */
+
+        if (pstate.logs.empty()) {
+            /* we have no logs */
+            grant = true;
+        } else if (pstate.logs.back().first < lastLogTerm) {
+            /* candidate's log is more recent */
+            grant = true;
+        } else if (pstate.logs.back().first == lastLogTerm) {
+            if (pstate.logs.size() + 1 < lastLogIndex) {
+                /* candidate has more logs on the same term */
+                grant = true;
+            } else if (pstate.logs.size() + 1 == lastLogIndex) {
+                /*
+                 * TODO: is this possible?
+                 * If we suffer a network outage and came back online - the new
+                 * campaign will have a newer term. No one should be competing.
+                 *
+                 * It's possible if two followers both become candidates at the
+                 * same time and compete for votes? But in this case the
+                 * candidates would have voted for themselves and deny the
+                 * request. We shouldn't get to the log comparison part.
+                 */
+            } else {
+                /* we have more log - reject */
+            }
+        }
+#endif
+
 /*
  * If we are a candidate
  *  Must be getting this from a leader. Is it possible for a leader to have
