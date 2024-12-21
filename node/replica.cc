@@ -102,3 +102,7 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& variant)
 template auto Replica::request_vote<Replica::Candidate>(
     const Replica::RequestVoteReq& variant)
     -> tuple<Replica::State, Replica::RequestVoteReply>;
+
+template auto
+Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& variant)
+    -> tuple<Replica::State, Replica::RequestVoteReply>;

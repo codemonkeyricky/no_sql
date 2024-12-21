@@ -25,36 +25,6 @@ bool Replica::at_least_as_up_to_date_as_me(int peer_last_log_index,
     }
 }
 
-template <>
-std::tuple<Replica::State, Replica::RequestVoteReply>
-Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& req) {
-    auto& [term, candidateId, lastLogIndex, lastLogTerm] = req;
-
-    bool grant = false;
-
-    if (term < pstate.currentTerm) {
-        /* We have seen higher term - reject */
-    } else {
-        /* compare logs */
-        if (pstate.votedFor == std::nullopt ||
-            *pstate.votedFor == candidateId) {
-            /* It's possible for the candidate to "lose" the previous reply
-             * due to unfavourable network conditions */
-            grant = at_least_as_up_to_date_as_me(lastLogIndex, lastLogTerm);
-        }
-    }
-
-    pstate.currentTerm = std::max(pstate.currentTerm, term);
-
-    return {Replica::Follower, {pstate.currentTerm, grant}};
-}
-
-// template <>
-// std::tuple<Replica::State, Replica::AppendEntryReply>
-// Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq&
-// req)
-// {}
-
 #if 0
 template <>
 Replica::AppendEntryReply
