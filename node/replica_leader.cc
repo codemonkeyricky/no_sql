@@ -6,45 +6,6 @@
 
 using namespace std;
 
-template <>
-std::tuple<Replica::State, Replica::RequestVoteReply>
-Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
-
-    /*
-     * It is not possible for two leader having the same
-     * term number. If we are a leader and received requestVote RPC from a
-     * candidate, there are 3 possibilities:
-     *  1. Candidate is campaigning a new term. This may happen if we suffered a
-     *     network outage and another node decided to campaign for leadership.
-     *  2. Candidate suffered a network outage and just came back online -
-     *     campaigning for the same term not realizing we already won.
-     *  3. Candidate is stale and campaigning for a stale term.
-     *
-     * As a leader we reject 2 and 3, and accept 1 and transition into Follower.
-     * We don't care about lastLogIndex and lastLogTerm - those are for decision
-     * making if we are a candidate.
-     */
-
-    auto& [term, candidateId, lastLogIndex, lastLogTerm] = req;
-
-    Replica::RequestVoteReply reply = {};
-
-    /* under no scenario should we cache a vote as leader - we either reject or
-     * vote and step down */
-
-    bool grant = false;
-    if (term > pstate.currentTerm) {
-        /* grant vote and become a follower */
-        grant = true;
-        pstate.votedFor = candidateId;
-    }
-
-    pstate.currentTerm = max(pstate.currentTerm, term);
-
-    return {grant ? Replica::Follower : impl.state,
-            {pstate.currentTerm, grant}};
-}
-
 /*
  * two things to decide:
  *  1. do we need to transition to follower
