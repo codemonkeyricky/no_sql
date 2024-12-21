@@ -42,8 +42,9 @@ class Replica {
 
     struct PersistentState {
         int currentTerm = 0;
-        std::optional<int> votedFor = {}; /* TODO: clear on a new term! */
-                                          /* TODO: update to std::string */
+        std::optional<std::string> votedFor =
+            {}; /* TODO: clear on a new term! */
+                /* TODO: update to std::string */
         /* it's possible to have *not* voted for anyone. eg. if a new leader is
          * established while we were offline, we would accept leader as is. */
         std::vector<std::pair<int, std::array<std::string, 2>>>
@@ -84,7 +85,6 @@ class Replica {
         State state = Follower;
         std::string my_addr;
         std::vector<std::string> cluster;
-        std::optional<std::string> votedFor;
 
         LeaderImpl leader;
         FollowerImpl follower;

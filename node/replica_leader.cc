@@ -36,7 +36,7 @@ Replica::request_vote<Replica::Leader>(const Replica::RequestVoteReq& req) {
     if (term > pstate.currentTerm) {
         /* grant vote and become a follower */
         grant = true;
-        impl.votedFor = candidateId;
+        pstate.votedFor = candidateId;
     }
 
     pstate.currentTerm = max(pstate.currentTerm, term);

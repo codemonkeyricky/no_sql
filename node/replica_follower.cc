@@ -36,11 +36,10 @@ Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& req) {
         /* We have seen higher term - reject */
     } else {
         /* compare logs */
-        if (pstate.votedFor == std::nullopt)
-        //  *pstate.votedFor == candidateId) {
-        {
-            /* It's possible for the candidate to "lose" the previous reply due
-             * to unfavourable network conditions */
+        if (pstate.votedFor == std::nullopt ||
+            *pstate.votedFor == candidateId) {
+            /* It's possible for the candidate to "lose" the previous reply
+             * due to unfavourable network conditions */
             grant = at_least_as_up_to_date_as_me(lastLogIndex, lastLogTerm);
         }
     }
@@ -52,7 +51,8 @@ Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& req) {
 
 // template <>
 // std::tuple<Replica::State, Replica::AppendEntryReply>
-// Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req)
+// Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq&
+// req)
 // {}
 
 #if 0
