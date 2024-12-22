@@ -159,7 +159,10 @@ class Replica {
         bool voteGranted;
     };
 
-    Replica() { /* spawn as follower */ }
+    Replica(const std::string& addr, const std::vector<std::string>& cluster) {
+        impl.my_addr = addr;
+        impl.cluster = cluster;
+    }
 
     boost::cobalt::task<void> init() {
 
