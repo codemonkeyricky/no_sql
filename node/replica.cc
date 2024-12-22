@@ -134,6 +134,8 @@ auto Replica::add_entries(const Replica::AppendEntryReq& req)
     /* accept leader - but only accept RPC if history match */
     impl.state = Replica::Follower;
 
+    impl.follower.keep_alive = true;
+
     auto peerLogSize = prevLogIndex + 1;
 
     bool accept = false;

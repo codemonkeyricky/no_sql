@@ -5,6 +5,8 @@
  *  Only need to worry about history convergence
  */
 
+using namespace std;
+
 bool Replica::at_least_as_up_to_date_as_me(int peer_last_log_index,
                                            int peer_last_log_term) {
 
@@ -26,47 +28,45 @@ bool Replica::at_least_as_up_to_date_as_me(int peer_last_log_index,
 }
 
 boost::cobalt::task<void>
-Replica::follower_fsm(boost::asio::ip::tcp::acceptor) {
+Replica::follower_fsm(boost::asio::ip::tcp::acceptor acceptor) {
 
-#if 0
-    auto follower_rx_payload_handler =
-        [this](const Replica::RequestVariant& variant)
-        -> boost::cobalt::task<void> {
-        switch (variant.index()) {
-        case 0: {
-            /* append entries */
-            auto reply =
-                co_await add_entries<Replica::Follower>(get<0>(variant));
-        } break;
-        case 1: {
-            // auto req = variant.value();
-            auto reply =
-                co_await request_vote<Replica::Follower>(get<1>(variant));
-        } break;
-        }
-    };
+    impl.state = Leader;
+    impl.leader = {};
 
-    impl.state = Follower;
+    auto io = co_await boost::cobalt::this_coro::executor;
 
-    rx_payload_handler = [&](const RequestVariant& variant) {
-        /* need to trampoline through a lambda because rx_payload_handler
-         * parameters is missing the implicit "this" argument */
-        return follower_rx_payload_handler(variant);
+    boost::asio::steady_timer cancel{io};
+    cancel.expires_after(
+        std::chrono::milliseconds(1000)); /* TODO: block forever */
+
+    auto rx_coro = boost::cobalt::spawn(
+        io, rx_connection<Replica::Leader>(acceptor, cancel),
+        boost::cobalt::use_task);
+
+    auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
+        boost::system::error_code ec;
+        co_await cancel.async_wait(
+            boost::asio::redirect_error(boost::cobalt::use_task, ec));
     };
 
     while (true) {
-        /* wait for heartbeat timeout */
+
         co_await timeout(150);
 
-        if (!impl.follower.keep_alive)
+        if (!impl.follower.keep_alive) {
             break;
+        }
 
         impl.follower.keep_alive = false;
     }
 
-    /* failed to receive leader heartbeat - start campaigning */
+    /* become a follower after stepping down */
 
-    auto io = co_await boost::cobalt::this_coro::executor;
-    boost::cobalt::spawn(io, candidate_fsm(), boost::asio::detached);
-#endif
+    /* wait for rx_connection to complete */
+    cancel.cancel();
+    co_await rx_coro;
+
+    /* leader disappeared - campaign a new election */
+    boost::cobalt::spawn(io, candidate_fsm(move(acceptor)),
+                         boost::asio::detached);
 }
