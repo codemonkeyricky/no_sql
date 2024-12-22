@@ -165,23 +165,17 @@ class Replica {
         impl.cluster = cluster;
     }
 
-    boost::cobalt::task<void> init() {
-
-        auto io = co_await boost::cobalt::this_coro::executor;
+    void spawn(boost::asio::io_context& io) {
 
         auto p = impl.my_addr.find(":");
         auto addr = impl.my_addr.substr(0, p);
         auto port = impl.my_addr.substr(p + 1);
-
-        auto executor = co_await boost::cobalt::this_coro::executor;
 
         boost::asio::ip::tcp::acceptor acceptor(
             io, {boost::asio::ip::tcp::v4(), stoi(port)});
 
         boost::cobalt::spawn(io, fsm(std::move(acceptor)),
                              boost::asio::detached);
-
-        // boost::cobalt::spawn(io, rx_conn_acceptor(), boost::asio::detached);
     }
 
     using RequestVariant =

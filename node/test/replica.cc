@@ -47,34 +47,38 @@ int main() {
     vector<string> cluster = {"127.0.0.1:5555", "127.0.0.1:5556"};
 
     Replica r0(cluster[0], cluster);
+    Replica r1(cluster[1], cluster);
 
     boost::asio::io_context io(1);
 
-    cout << "whatever" << endl;
-    boost::cobalt::spawn(
-        io,
-        []() -> boost::cobalt::task<void> {
-            /* TODO: */
+    r0.spawn(io);
+    r1.spawn(io);
 
-            auto io = co_await boost::asio::this_coro::executor;
+    // cout << "whatever" << endl;
+    // boost::cobalt::spawn(
+    //     io,
+    //     []() -> boost::cobalt::task<void> {
+    //         /* TODO: */
 
-            cout << "coro #1" << endl;
+    //         auto io = co_await boost::asio::this_coro::executor;
 
-            // cout << co_await eager_promise() << endl;
+    //         cout << "coro #1" << endl;
 
-            // boost::asio::io_context io2(1);
+    //         // cout << co_await eager_promise() << endl;
 
-            auto t =
-                boost::cobalt::spawn(io, spawn_task(), boost::cobalt::use_task);
+    //         // boost::asio::io_context io2(1);
 
-            // io2.run();
-            co_await t;
+    //         auto t =
+    //             boost::cobalt::spawn(io, spawn_task(), boost::cobalt::use_task);
 
-            cout << "coro #2" << endl;
+    //         // io2.run();
+    //         co_await t;
 
-            co_return;
-        }(),
-        boost::asio::detached);
+    //         cout << "coro #2" << endl;
+
+    //         co_return;
+    //     }(),
+    //     boost::asio::detached);
 
     /* TC: All followers electing one leader */
 
