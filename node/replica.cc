@@ -108,8 +108,7 @@ Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& variant)
     -> tuple<Replica::State, Replica::RequestVoteReply>;
 
 template <Replica::State T>
-auto Replica::add_entries(
-    const Replica::AppendEntryReq& req)
+auto Replica::add_entries(const Replica::AppendEntryReq& req)
     -> tuple<Replica::State, Replica::AppendEntryReply> {
 
     auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit, entry] =
@@ -133,31 +132,29 @@ auto Replica::add_entries(
         return {impl.state, {pstate.currentTerm, false}};
     }
 
-    /* accept leader - but only accept log if history match */
+    /* accept leader - but only accept RPC if history match */
+    impl.state = Replica::Follower;
 
-    if (term >= pstate.currentTerm) {
-        /* recognize leader - drop down to follower */
+    auto peerLogSize = prevLogIndex + 1;
 
-        /* however, may need to force leader to walk history backwards */
-
-        /* find common ancester */
-        bool success = false;
-        if (pstate.logs.size() - 1 < prevLogIndex) {
-            /* Our log is too small. Force leader to find a common ancestor
-             */
-            success = false;
-        } else if (pstate.logs[prevLogIndex].first != prevLogTerm) {
-            /* log exist, but term disagrees. ask leader to keep walking
-             * backwards to find common history */
-            pstate.logs.resize(prevLogIndex);
-            success = false;
+    bool accept = false;
+    if (pstate.logs.size() == peerLogSize) {
+        if (pstate.logs.empty()) {
+            accept = true;
+        } else if (pstate.logs.back().first == prevLogTerm) {
+            accept = true;
         }
-
-        pstate.currentTerm = max(pstate.currentTerm, term);
-
-        return {Replica::Follower, {pstate.currentTerm, success}};
-    } else {
-        /* Current leader is stale - reject */
-        return {impl.state, {pstate.currentTerm, false}};
+    } else if (pstate.logs.size() > peerLogSize) {
+        /* our log is longer */
+        pstate.logs.resize(peerLogSize);
+        if (peerLogSize == 0) {
+            accept = true;
+        } else if (pstate.logs[prevLogIndex].first == prevLogTerm) {
+            accept = true;
+        } else {
+            /* reject and force leader to wallk backwards */
+        }
+    } else /* our logs is smaller */ {
+        /* reject and force leader to wallk backwards */
     }
 }
