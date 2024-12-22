@@ -136,7 +136,8 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
 
             auto& socket = get<0>(nx);
 
-            // auto task = boost::cobalt::spawn(io, rx_process(std::move(socket)),
+            // auto task = boost::cobalt::spawn(io,
+            // rx_process(std::move(socket)),
             //                                  boost::cobalt::use_task);
             // active_tasks.insert(task);
 
@@ -158,8 +159,8 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
     }
 }
 
-boost::cobalt::task<void>
-Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
+boost::cobalt::task<Replica::State>
+Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     impl.state = Leader;
     impl.leader = {};
@@ -206,6 +207,5 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     cancel.cancel();
     co_await rx_coro;
 
-    boost::cobalt::spawn(io, follower_fsm(move(acceptor)),
-                         boost::asio::detached);
+    co_return Follower;
 }

@@ -94,8 +94,8 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Candidate>(
     }
 }
 
-boost::cobalt::task<void>
-Replica::candidate_fsm(boost::asio::ip::tcp::acceptor acceptor) {
+boost::cobalt::task<Replica::State>
+Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
 #if 0
     auto candidate_rx_payload_handler =
@@ -222,8 +222,7 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     cancel.cancel();
     co_await rx_coro;
 
-    boost::cobalt::spawn(io, follower_fsm(move(acceptor)),
-                         boost::asio::detached);
+    co_return Follower;
 }
 
 // template auto Replica::rx_payload_handler<Replica::Candidate>(

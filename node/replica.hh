@@ -123,9 +123,10 @@ class Replica {
         co_return;
     }
 
-    boost::cobalt::task<void> candidate_fsm(boost::asio::ip::tcp::acceptor);
-    boost::cobalt::task<void> leader_fsm(boost::asio::ip::tcp::acceptor);
-    boost::cobalt::task<void> follower_fsm(boost::asio::ip::tcp::acceptor);
+    boost::cobalt::task<State> candidate_fsm(boost::asio::ip::tcp::acceptor&);
+    boost::cobalt::task<State> leader_fsm(boost::asio::ip::tcp::acceptor&);
+    boost::cobalt::task<State> follower_fsm(boost::asio::ip::tcp::acceptor&);
+    boost::cobalt::task<void> fsm(boost::asio::ip::tcp::acceptor);
 
     template <State T>
     boost::cobalt::task<void>
@@ -177,7 +178,7 @@ class Replica {
         boost::asio::ip::tcp::acceptor acceptor(
             io, {boost::asio::ip::tcp::v4(), stoi(port)});
 
-        boost::cobalt::spawn(io, follower_fsm(std::move(acceptor)),
+        boost::cobalt::spawn(io, fsm(std::move(acceptor)),
                              boost::asio::detached);
 
         // boost::cobalt::spawn(io, rx_conn_acceptor(), boost::asio::detached);

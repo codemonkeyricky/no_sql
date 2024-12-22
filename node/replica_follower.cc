@@ -1,4 +1,5 @@
 #include "node/replica.hh"
+#include "replica.hh"
 
 /*
  * If we are a follower
@@ -27,8 +28,8 @@ bool Replica::at_least_as_up_to_date_as_me(int peer_last_log_index,
     }
 }
 
-boost::cobalt::task<void>
-Replica::follower_fsm(boost::asio::ip::tcp::acceptor acceptor) {
+boost::cobalt::task<Replica::State>
+Replica::follower_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     impl.state = Leader;
     impl.leader = {};
@@ -66,7 +67,5 @@ Replica::follower_fsm(boost::asio::ip::tcp::acceptor acceptor) {
     cancel.cancel();
     co_await rx_coro;
 
-    /* leader disappeared - campaign a new election */
-    boost::cobalt::spawn(io, candidate_fsm(move(acceptor)),
-                         boost::asio::detached);
+    co_return Replica::Candidate;
 }
