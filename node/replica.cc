@@ -114,19 +114,6 @@ auto Replica::add_entries(const Replica::AppendEntryReq& req)
     auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit, entry] =
         req;
 
-    /*
-     * Raft paper 5.2:
-     *
-     * While waiting for votes, a candidate may receive an
-     * AppendEntries RPC from another server claiming to be
-     * leader. If the leader’s term (included in its RPC) is at least
-     * as large as the candidate’s current term, then the candidate
-     * recognizes the leader as legitimate and returns to follower
-     * state. If the term in the RPC is smaller than the candidate’s
-     * current term, then the candidate rejects the RPC and con-
-     * tinues in candidate state.
-     */
-
     if (term < pstate.currentTerm) {
         /* leader is stale - reject */
         return {impl.state, {pstate.currentTerm, false}};
@@ -157,4 +144,6 @@ auto Replica::add_entries(const Replica::AppendEntryReq& req)
     } else /* our logs is smaller */ {
         /* reject and force leader to wallk backwards */
     }
+
+    return {impl.state, {pstate.currentTerm, accept}};
 }
