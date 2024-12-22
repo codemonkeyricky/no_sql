@@ -172,11 +172,13 @@ class Replica {
         auto addr = impl.my_addr.substr(0, p);
         auto port = impl.my_addr.substr(p + 1);
 
-        // boost::asio::ip::tcp::acceptor acceptor(
-        //     io, {boost::asio::ip::tcp::v4(), port});
+        auto executor = co_await boost::cobalt::this_coro::executor;
 
-        // boost::cobalt::spawn(io, follower_fsm(std::move(acceptor)),
-        //                      boost::asio::detached);
+        boost::asio::ip::tcp::acceptor acceptor(
+            io, {boost::asio::ip::tcp::v4(), stoi(port)});
+
+        boost::cobalt::spawn(io, follower_fsm(std::move(acceptor)),
+                             boost::asio::detached);
 
         // boost::cobalt::spawn(io, rx_conn_acceptor(), boost::asio::detached);
     }
