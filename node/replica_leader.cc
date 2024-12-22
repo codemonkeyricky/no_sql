@@ -12,61 +12,6 @@ using namespace std;
  *  2. do we need to ask leader to walk backwards in history
  */
 
-template <>
-tuple<Replica::State, Replica::AppendEntryReply>
-Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req) {
-
-    /*
-     * It is not possible for two leader having the same
-     * term number. If we received addEntries RPC from another leader, it
-     * must have newer or older term number.
-     *
-     * In the case of older term number, we reject.
-     *
-     * In the case of new term number, we step down but *may* need to
-     * force new leader to walk logs backwards until common history is
-     * identified.
-     */
-
-    auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit, entry] =
-        req;
-
-    Replica::AppendEntryReply reply = {};
-
-    bool success = true;
-    Replica::State s = impl.state;
-    if (term < pstate.currentTerm) {
-        /* request came from leader with stale term - reject */
-        return {s, {pstate.currentTerm, false}};
-    } else if (term > pstate.currentTerm) {
-        /* we are stale - revert to follower */
-        s = Replica::Follower;
-
-        /* find common ancester */
-        if (pstate.logs.size() - 1 < prevLogIndex) {
-            /* Our log is too small. Force leader to find a common ancestor
-             */
-            success = false;
-        } else if (pstate.logs[prevLogIndex].first != prevLogTerm) {
-            /* log exist, but term disagrees. ask leader to keep walking
-             * backwards to find common history */
-            pstate.logs.resize(prevLogIndex);
-            success = false;
-        }
-
-    } else {
-        /* not possible having two leader with the same term */
-        assert(0);
-    }
-
-    pstate.currentTerm = max(term, pstate.currentTerm);
-
-    /* TODO: cache leaderId */
-    /* TODO: if success, flush leaderCommit */
-
-    return {s, {pstate.currentTerm, success}};
-}
-
 static boost::cobalt::task<Replica::AppendEntryReply>
 replicate_log(std::string peer_addr, Replica::AppendEntryReq req) {
 

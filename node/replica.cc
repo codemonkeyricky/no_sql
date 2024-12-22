@@ -147,3 +147,15 @@ auto Replica::add_entries(const Replica::AppendEntryReq& req)
 
     return {impl.state, {pstate.currentTerm, accept}};
 }
+
+template auto
+Replica::add_entries<Replica::Follower>(const Replica::AppendEntryReq& req)
+    -> tuple<Replica::State, Replica::AppendEntryReply>;
+
+template auto
+Replica::add_entries<Replica::Leader>(const Replica::AppendEntryReq& req)
+    -> tuple<Replica::State, Replica::AppendEntryReply>;
+
+template auto
+Replica::add_entries<Replica::Candidate>(const Replica::AppendEntryReq& req)
+    -> tuple<Replica::State, Replica::AppendEntryReply>;
