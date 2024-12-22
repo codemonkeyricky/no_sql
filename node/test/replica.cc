@@ -54,6 +54,9 @@ int main() {
     r0.spawn(io);
     r1.spawn(io);
 
+    /* TODO: co_await on a use_task that spawns many detached - hopefully this
+     * means the use_task only returns when all detached are complete. */
+
     // cout << "whatever" << endl;
     // boost::cobalt::spawn(
     //     io,
@@ -69,7 +72,8 @@ int main() {
     //         // boost::asio::io_context io2(1);
 
     //         auto t =
-    //             boost::cobalt::spawn(io, spawn_task(), boost::cobalt::use_task);
+    //             boost::cobalt::spawn(io, spawn_task(),
+    //             boost::cobalt::use_task);
 
     //         // io2.run();
     //         co_await t;
