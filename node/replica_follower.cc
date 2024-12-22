@@ -1,6 +1,8 @@
 #include "node/replica.hh"
 #include "replica.hh"
 
+#include <iostream>
+
 /*
  * If we are a follower
  *  Only need to worry about history convergence
@@ -28,21 +30,44 @@ bool Replica::at_least_as_up_to_date_as_me(int peer_last_log_index,
     }
 }
 
+boost::cobalt::task<void> dummy() {
+    cout << "dummy1" << endl;
+
+    auto io = co_await boost::cobalt::this_coro::executor;
+    boost::asio::steady_timer timer{io};
+    timer.expires_after(std::chrono::seconds(1));
+    co_await timer.async_wait(boost::cobalt::use_task);
+
+    cout << "dummy1 after timeout" << endl;
+
+    co_return;
+}
+boost::cobalt::task<void> dummy2() {
+    cout << "dummy2" << endl;
+    co_return;
+}
+
 boost::cobalt::task<Replica::State>
 Replica::follower_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
-    impl.state = Leader;
-    impl.leader = {};
+    impl.state = Follower;
+    impl.follower = {};
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
     boost::asio::steady_timer cancel{io};
-    cancel.expires_after(
-        std::chrono::milliseconds(1000)); /* TODO: block forever */
+    cancel.expires_at(
+        decltype(cancel)::time_point::max()); /* TODO: block forever */
 
-    auto rx_coro = boost::cobalt::spawn(
-        io, rx_connection<Replica::Leader>(acceptor, cancel),
-        boost::cobalt::use_task);
+    // auto task = boost::cobalt::spawn(io, dummy(), boost::cobalt::use_task);
+
+    // task->finally([&]() { active_tasks.erase(task); });
+    // task->finally
+
+    //     co_await dummy();
+
+    // boost::cobalt::spawn(io, dummy(), boost::asio::detached);
+    // boost::cobalt::spawn(io, dummy2(), boost::asio::detached);
 
     auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
         boost::system::error_code ec;
@@ -65,7 +90,9 @@ Replica::follower_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     /* wait for rx_connection to complete */
     cancel.cancel();
-    co_await rx_coro;
+    // co_await rx_coro;
+
+    cout << "follower fsm after spawns" << endl;
 
     co_return Replica::Candidate;
 }

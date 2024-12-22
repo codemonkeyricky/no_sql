@@ -1,11 +1,12 @@
 #include "node/replica.hh"
 #include "replica.hh"
 #include <optional>
+#include <vector>
 
 using namespace std;
 
-static boost::cobalt::task<Replica::RequestVoteReply>
-request_vote_from_peer(std::string peer_addr) {
+boost::cobalt::task<Replica::RequestVoteReply>
+Replica::request_vote_from_peer(std::string& peer_addr) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -27,11 +28,14 @@ request_vote_from_peer(std::string peer_addr) {
             // std::cout << "error = " << error << std::endl;
         });
 
+    Replica::RequestVariant reqv = {};
+    auto reqs = serialize(reqv);
+
     //     std::string req =
     //         "v:" + std::to_string(i) + "-" + std::to_string(j);
-    //     co_await boost::asio::async_write(
-    //         socket, boost::asio::buffer(req.c_str(), req.size()),
-    //         boost::cobalt::use_task);
+    co_await boost::asio::async_write(
+        socket, boost::asio::buffer(reqs.c_str(), reqs.size()),
+        boost::cobalt::use_task);
 
     //     /* read results */
     //     char payload[1024] = {};
@@ -123,19 +127,6 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
         return candidate_rx_payload_handler(variant);
     };
 
-    auto io = co_await boost::asio::this_coro::executor;
-
-    vector<boost::cobalt::task<Replica::RequestVoteReply>> reqs;
-
-    for (auto peer_addr : impl.cluster) {
-        reqs.push_back(request_vote_from_peer(peer_addr));
-    }
-
-    /* wait until either all reqs are serviced or timeout */
-
-    auto rv = co_await boost::cobalt::(
-        boost::cobalt::gather(std::move(reqs)), timeout(150));
-
     bool leader = true;
 
     switch (rv.index()) {
@@ -177,8 +168,8 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     }
 #endif
 
-    impl.state = Leader;
-    impl.leader = {};
+    impl.state = Candidate;
+    // impl.candidate = {};
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -196,6 +187,20 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
             boost::asio::redirect_error(boost::cobalt::use_task, ec));
     };
 
+    vector<boost::cobalt::task<Replica::RequestVoteReply>> reqs;
+
+    for (auto peer_addr : impl.cluster) {
+        if (peer_addr != impl.my_addr) {
+            reqs.push_back(request_vote_from_peer(peer_addr));
+        }
+    }
+
+    /* wait until either all reqs are serviced or timeout */
+
+    auto rv = co_await boost::cobalt::race(
+        boost::cobalt::gather(std::move(reqs)), timeout(150));
+
+#if 0
     while (true) {
         /* wait for heartbeat timeout */
         /* TODO: randomized timeout? */
@@ -221,6 +226,7 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     /* wait for rx_connection to complete */
     cancel.cancel();
     co_await rx_coro;
+#endif
 
     co_return Follower;
 }

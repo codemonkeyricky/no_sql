@@ -165,6 +165,8 @@ auto Replica::add_entries(const Replica::AppendEntryReq& req)
 boost::cobalt::task<void>
 Replica::fsm(boost::asio::ip::tcp::acceptor acceptor) {
 
+    auto io = co_await boost::asio::this_coro::executor;
+
     while (true) {
         switch (impl.state) {
         case Follower: {

@@ -23,6 +23,9 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/cobalt.hpp>
+#include <boost/serialization/array.hpp>
+#include <boost/serialization/optional.hpp>
+#include <boost/serialization/variant.hpp>
 // #include <boost/exception/diagnostic_information.hpp>
 // #include <boost/serialization/map.hpp>
 // #include <boost/serialization/set.hpp>
@@ -141,6 +144,16 @@ class Replica {
         int prevLogTerm;
         int leaderCommit;
         std::optional<std::array<std::string, 2>> entry; /* key / value*/
+
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & term;
+            ar & leaderId;
+            ar & prevLogIndex;
+            ar & prevLogTerm;
+            ar & leaderCommit;
+            ar & entry;
+        }
     };
 
     struct AppendEntryReply {
@@ -153,6 +166,14 @@ class Replica {
         std::string candidateId;
         int lastLogIndex;
         int lastLogTerm;
+
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & term;
+            ar & candidateId;
+            ar & lastLogIndex;
+            ar & lastLogTerm;
+        }
     };
 
     struct RequestVoteReply {
@@ -282,4 +303,23 @@ class Replica {
 
     bool at_least_as_up_to_date_as_me(int peer_last_log_index,
                                       int peer_last_log_term);
+
+    template <typename T> std::string serialize(T&& data) {
+        std::ostringstream oss;
+        boost::archive::text_oarchive oa(oss);
+        oa << data;
+        return oss.str();
+    }
+
+    template <typename T, typename StringType>
+    T deserialize(StringType&& data) {
+        T rv;
+        std::istringstream iss(data);
+        boost::archive::text_iarchive ia(iss);
+        ia >> rv;
+        return std::move(rv);
+    }
+
+    boost::cobalt::task<Replica::RequestVoteReply>
+    request_vote_from_peer(std::string& peer_addr);
 };
