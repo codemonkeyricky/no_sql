@@ -106,3 +106,58 @@ template auto Replica::request_vote<Replica::Candidate>(
 template auto
 Replica::request_vote<Replica::Follower>(const Replica::RequestVoteReq& variant)
     -> tuple<Replica::State, Replica::RequestVoteReply>;
+
+template <Replica::State T>
+auto Replica::add_entries(
+    const Replica::AppendEntryReq& req)
+    -> tuple<Replica::State, Replica::AppendEntryReply> {
+
+    auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit, entry] =
+        req;
+
+    /*
+     * Raft paper 5.2:
+     *
+     * While waiting for votes, a candidate may receive an
+     * AppendEntries RPC from another server claiming to be
+     * leader. If the leader’s term (included in its RPC) is at least
+     * as large as the candidate’s current term, then the candidate
+     * recognizes the leader as legitimate and returns to follower
+     * state. If the term in the RPC is smaller than the candidate’s
+     * current term, then the candidate rejects the RPC and con-
+     * tinues in candidate state.
+     */
+
+    if (term < pstate.currentTerm) {
+        /* leader is stale - reject */
+        return {impl.state, {pstate.currentTerm, false}};
+    }
+
+    /* accept leader - but only accept log if history match */
+
+    if (term >= pstate.currentTerm) {
+        /* recognize leader - drop down to follower */
+
+        /* however, may need to force leader to walk history backwards */
+
+        /* find common ancester */
+        bool success = false;
+        if (pstate.logs.size() - 1 < prevLogIndex) {
+            /* Our log is too small. Force leader to find a common ancestor
+             */
+            success = false;
+        } else if (pstate.logs[prevLogIndex].first != prevLogTerm) {
+            /* log exist, but term disagrees. ask leader to keep walking
+             * backwards to find common history */
+            pstate.logs.resize(prevLogIndex);
+            success = false;
+        }
+
+        pstate.currentTerm = max(pstate.currentTerm, term);
+
+        return {Replica::Follower, {pstate.currentTerm, success}};
+    } else {
+        /* Current leader is stale - reject */
+        return {impl.state, {pstate.currentTerm, false}};
+    }
+}
