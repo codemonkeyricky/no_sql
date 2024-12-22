@@ -161,3 +161,21 @@ auto Replica::add_entries(const Replica::AppendEntryReq& req)
 
     return {impl.state, {pstate.currentTerm, accept}};
 }
+
+boost::cobalt::task<void>
+Replica::fsm(boost::asio::ip::tcp::acceptor acceptor) {
+
+    while (true) {
+        switch (impl.state) {
+        case Follower: {
+            impl.state = co_await follower_fsm(acceptor);
+        } break;
+        case Candidate: {
+            impl.state = co_await candidate_fsm(acceptor);
+        } break;
+        case Leader: {
+            impl.state = co_await leader_fsm(acceptor);
+        } break;
+        }
+    }
+}
