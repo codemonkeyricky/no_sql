@@ -3,6 +3,8 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/use_future.hpp>
 #include <optional>
+#include <set>
+#include <vector>
 
 using namespace std;
 
@@ -117,6 +119,12 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
             boost::asio::redirect_error(boost::cobalt::use_task, ec));
     };
 
+    auto io = co_await boost::cobalt::this_coro::executor;
+
+    // auto active_tasks = set<boost::cobalt::promise<void>>;
+
+    set<boost::cobalt::task<void>> active_tasks;
+
     while (true) {
 
         bool teardown = false;
@@ -128,23 +136,11 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
 
             auto& socket = get<0>(nx);
 
-            char data[1024] = {};
-            std::size_t n = co_await socket.async_read_some(
-                boost::asio::buffer(data), boost::cobalt::use_task);
+            // auto task = boost::cobalt::spawn(io, rx_process(std::move(socket)),
+            //                                  boost::cobalt::use_task);
+            // active_tasks.insert(task);
 
-            /* TODO: deserialize the payload here */
-            Replica::RequestVariant req_var;
-            auto [state, reply_var] = rx_payload_handler<Leader>(req_var);
-
-            /* TODO: serialize reply_var */
-            // co_await boost::asio::async_write(
-            //     socket, boost::asio::buffer(reply.c_str(), reply.size()),
-            //     boost::cobalt::use_task);
-
-            if (state != Replica::Leader) {
-                /* processing the payload is forcing a step down */
-                teardown = true;
-            }
+            // task->finally([&]() { active_tasks.erase(task); });
 
         } break;
         case 1: {
@@ -155,6 +151,10 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
         if (teardown) {
             break;
         }
+    }
+
+    while (active_tasks.size()) {
+        /* TODO: */
     }
 }
 
