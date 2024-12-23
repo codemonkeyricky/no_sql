@@ -206,9 +206,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
             /* req.entry not populated for heartbeat */
 
             auto reqs = serialize(Replica::RequestVariant(req));
-            // co_await boost::asio::async_write(
-            //     socket, boost::asio::buffer(reqs.c_str(), reqs.size()),
-            //     boost::cobalt::use_task);
+            co_await boost::asio::async_write(
+                socket, boost::asio::buffer(reqs.c_str(), reqs.size()),
+                boost::cobalt::use_task);
 
         } break;
         case 1: {
