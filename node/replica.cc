@@ -181,3 +181,59 @@ Replica::fsm(boost::asio::ip::tcp::acceptor acceptor) {
         }
     }
 }
+
+template auto Replica::rx_connection<Replica::Follower>(
+    boost::asio::ip::tcp::acceptor& acceptor,
+    boost::asio::steady_timer& cancel) -> boost::cobalt::task<void>;
+
+template <Replica::State T>
+auto Replica::rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
+                            boost::asio::steady_timer& cancel)
+    -> boost::cobalt::task<void> {
+
+    auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
+        boost::system::error_code ec;
+        co_await cancel.async_wait(
+            boost::asio::redirect_error(boost::cobalt::use_task, ec));
+    };
+
+    while (true) {
+
+        bool teardown = false;
+
+        auto nx = co_await boost::cobalt::race(
+            acceptor.async_accept(boost::cobalt::use_task), wait_for_cancel());
+        switch (nx.index()) {
+        case 0: {
+
+            auto& socket = get<0>(nx);
+
+            char data[1024] = {};
+            std::size_t n = co_await socket.async_read_some(
+                boost::asio::buffer(data), boost::cobalt::use_task);
+
+            /* TODO: deserialize the payload here */
+            Replica::RequestVariant req_var;
+            auto [state, reply_var] = rx_payload_handler<Candidate>(req_var);
+
+            /* TODO: serialize reply_var */
+            // co_await boost::asio::async_write(
+            //     socket, boost::asio::buffer(reply.c_str(), reply.size()),
+            //     boost::cobalt::use_task);
+
+            if (state != Replica::Leader) {
+                /* processing the payload is forcing a step down */
+                teardown = true;
+            }
+
+        } break;
+        case 1: {
+            teardown = true;
+        } break;
+        }
+
+        if (teardown) {
+            break;
+        }
+    }
+}
