@@ -212,6 +212,10 @@ auto Replica::rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
             std::size_t n = co_await socket.async_read_some(
                 boost::asio::buffer(data), boost::cobalt::use_task);
 
+            string datas(data);
+
+            auto replyv = deserialize<Replica::ReplyVariant>(datas);
+
             /* TODO: deserialize the payload here */
             Replica::RequestVariant req_var;
             auto [state, reply_var] = rx_payload_handler<Candidate>(req_var);

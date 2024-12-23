@@ -159,6 +159,12 @@ class Replica {
     struct AppendEntryReply {
         int term;
         bool success;
+
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & term;
+            ar & success;
+        }
     };
 
     struct RequestVoteReq {
@@ -179,6 +185,12 @@ class Replica {
     struct RequestVoteReply {
         int term;
         bool voteGranted;
+
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & term;
+            ar & voteGranted;
+        }
     };
 
     Replica(const std::string& addr, const std::vector<std::string>& cluster) {
