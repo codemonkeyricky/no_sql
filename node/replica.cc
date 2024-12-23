@@ -211,16 +211,14 @@ auto Replica::rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
             char data[1024] = {};
             std::size_t n = co_await socket.async_read_some(
                 boost::asio::buffer(data), boost::cobalt::use_task);
+            auto req_var = deserialize<Replica::RequestVariant>(string(data));
 
-            string datas(data);
-
-            auto req_var = deserialize<Replica::RequestVariant>(datas);
             auto [state, reply_var] = rx_payload_handler<Candidate>(req_var);
 
-            /* TODO: serialize reply_var */
-            // co_await boost::asio::async_write(
-            //     socket, boost::asio::buffer(reply.c_str(), reply.size()),
-            //     boost::cobalt::use_task);
+            auto reply_s = serialize(reply_var);
+            co_await boost::asio::async_write(
+                socket, boost::asio::buffer(reply_s.c_str(), reply_s.size()),
+                boost::cobalt::use_task);
 
             if (state != Replica::Leader) {
                 /* processing the payload is forcing a step down */
