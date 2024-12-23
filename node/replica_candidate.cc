@@ -29,6 +29,18 @@ Replica::request_vote_from_peer(std::string& peer_addr) {
         });
 
     Replica::RequestVariant reqv = {};
+    RequestVoteReq req = {};
+    req.candidateId = impl.my_addr;
+    req.term = pstate.currentTerm;
+    req.lastLogIndex = pstate.logs.size() - 1;
+    if (pstate.logs.size()) {
+        req.lastLogTerm = pstate.logs.back().first;
+    } else {
+        req.lastLogTerm = -1;
+    }
+
+    reqv = req;
+
     auto reqs = serialize(reqv);
 
     //     std::string req =

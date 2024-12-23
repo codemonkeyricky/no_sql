@@ -69,6 +69,10 @@ Replica::follower_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     // boost::cobalt::spawn(io, dummy(), boost::asio::detached);
     // boost::cobalt::spawn(io, dummy2(), boost::asio::detached);
 
+    boost::cobalt::spawn(io,
+                         rx_connection<Replica::Candidate>(acceptor, cancel),
+                         boost::asio::detached);
+
     auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
         boost::system::error_code ec;
         co_await cancel.async_wait(
