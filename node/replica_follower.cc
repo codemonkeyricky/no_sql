@@ -80,7 +80,11 @@ Replica::follower_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     while (true) {
 
-        co_await timeout(150);
+        if (impl.my_addr == "127.0.0.1:5555") {
+            co_await timeout(150);
+        } else {
+            co_await timeout(100 * 1000);
+        }
 
         if (!impl.follower.keep_alive) {
             break;

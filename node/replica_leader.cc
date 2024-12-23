@@ -189,6 +189,27 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
         switch (nx.index()) {
         case 0: {
             /* TODO: heartbeat - establish authority */
+
+            AppendEntryReq req = {};
+            req.term = pstate.currentTerm;
+            req.leaderId = impl.my_addr;
+
+            if (pstate.logs.empty()) {
+                req.prevLogIndex = 0;
+                req.prevLogTerm = 0;
+            } else {
+                req.prevLogIndex = pstate.logs.size() - 1;
+                req.prevLogTerm = pstate.logs.back().first;
+            }
+            req.leaderCommit = vstate.commitIndex;
+
+            /* req.entry not populated for heartbeat */
+
+            auto reqs = serialize(Replica::RequestVariant(req));
+            // co_await boost::asio::async_write(
+            //     socket, boost::asio::buffer(reqs.c_str(), reqs.size()),
+            //     boost::cobalt::use_task);
+
         } break;
         case 1: {
             /* stepping down */

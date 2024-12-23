@@ -42,20 +42,18 @@ Replica::request_vote_from_peer(std::string& peer_addr) {
     reqv = req;
 
     auto reqs = serialize(reqv);
-
-    //     std::string req =
-    //         "v:" + std::to_string(i) + "-" + std::to_string(j);
     co_await boost::asio::async_write(
         socket, boost::asio::buffer(reqs.c_str(), reqs.size()),
         boost::cobalt::use_task);
 
-    //     /* read results */
-    //     char payload[1024] = {};
-    //     auto n = co_await socket.async_read_some(
-    //         boost::asio::buffer(payload), boost::cobalt::use_task);
+    char reply_char[1024] = {};
+    auto n = co_await socket.async_read_some(boost::asio::buffer(reply_char),
+                                             boost::cobalt::use_task);
+    auto reply_var = deserialize<Replica::ReplyVariant>(string(reply_char));
 
-    Replica::RequestVoteReply reply{};
-    co_return reply;
+    auto req_vote_reply = get<1>(reply_var);
+
+    co_return req_vote_reply;
 }
 
 template <>
@@ -212,37 +210,40 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     auto rv = co_await boost::cobalt::race(
         boost::cobalt::gather(std::move(reqs)), timeout(150));
 
-#if 0
-    while (true) {
-        /* wait for heartbeat timeout */
-        /* TODO: randomized timeout? */
-        bool stepping_down = false;
-        auto nx = co_await boost::cobalt::race(timeout(150), wait_for_cancel());
-        switch (nx.index()) {
-        case 0: {
-            /* TODO: heartbeat - establish authority */
-        } break;
-        case 1: {
-            /* stepping down */
-            stepping_down = true;
-        } break;
+    State new_state = Leader;
+    switch (rv.index()) {
+    case 0: {
+        /* all requests finished */
+        cout << "candidate_campaign(): All request_vote() completed!" << endl;
+        auto replies = get<0>(rv);
+
+        int highest_term = 0;
+        int vote_cnt = 1; /* candidate votes for itself */
+
+        for (auto& reply_variant : replies) {
+            auto [term, vote] = reply_variant.value();
+            highest_term = max(highest_term, term);
+            vote_cnt += vote;
         }
 
-        if (stepping_down) {
-            break;
+        if (highest_term > pstate.currentTerm) {
+            /* someone was elected? */
+            new_state = Follower;
+        } else if (vote_cnt < impl.cluster.size() / 2 + 1) {
+            /* failed to achieve majority vote - restart election */
+            new_state = Candidate;
         }
+
+    } break;
+    case 1: {
+        cout << "candidate_campaign(): request_vote() timeout!" << endl;
+        /* TODO: if not everyone responded by timeout but we collected votes
+         * from majority we are still leader! */
+
+        /* TODO: can also receive appendEntries from new leader */
+        new_state = Follower;
+    } break;
     }
 
-    /* become a follower after stepping down */
-
-    /* wait for rx_connection to complete */
-    cancel.cancel();
-    co_await rx_coro;
-#endif
-
-    co_return Follower;
+    co_return new_state;
 }
-
-// template auto Replica::rx_payload_handler<Replica::Candidate>(
-//     const Replica::RequestVariant& variant)
-//     -> tuple<State, Replica::ReplyVariant>;
