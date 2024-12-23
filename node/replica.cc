@@ -214,10 +214,7 @@ auto Replica::rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
 
             string datas(data);
 
-            auto replyv = deserialize<Replica::ReplyVariant>(datas);
-
-            /* TODO: deserialize the payload here */
-            Replica::RequestVariant req_var;
+            auto req_var = deserialize<Replica::RequestVariant>(datas);
             auto [state, reply_var] = rx_payload_handler<Candidate>(req_var);
 
             /* TODO: serialize reply_var */
