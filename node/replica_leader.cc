@@ -162,11 +162,11 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
 }
 
 boost::cobalt::task<void> Replica::follower_handler(
-    boost::asio::any_io_executor& io, string& peer_addr,
+    string& peer_addr,
     shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
     shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx) {
 
-    // auto io = co_await boost::cobalt::this_coro::executor;
+    auto io = co_await boost::cobalt::this_coro::executor;
 
     auto p = peer_addr.find(":");
     auto addr = peer_addr.substr(0, p);
@@ -236,8 +236,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
             make_shared<boost::cobalt::channel<Replica::ReplyVariant>>(8, io));
         auto peer_addr = impl.cluster[k];
         if (peer_addr != impl.my_addr) {
-            boost::cobalt::spawn(io,
-                                 follower_handler(io, peer_addr, tx[k], rx[k]),
+            boost::cobalt::spawn(io, follower_handler(peer_addr, tx[k], rx[k]),
                                  boost::asio::detached);
             co_await tx[k]->write(heartbeat);
         }

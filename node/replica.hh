@@ -340,7 +340,6 @@ class Replica {
     replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req);
 
     boost::cobalt::task<void> follower_handler(
-        boost::asio::any_io_executor& io,
         std::string& peer_addr,
         std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
         std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx);
