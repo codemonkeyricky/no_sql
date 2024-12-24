@@ -159,9 +159,10 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
     }
 }
 
-boost::cobalt::task<void> Replica::follower_handler(
-    string& peer_addr,
-    boost::cobalt::channel<Replica::RequestVariant>& channel) {
+boost::cobalt::task<void>
+Replica::follower_handler(string& peer_addr,
+                          boost::cobalt::channel<Replica::RequestVariant>& rx,
+                          boost::cobalt::channel<Replica::ReplyVariant>& tx) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -173,8 +174,8 @@ boost::cobalt::task<void> Replica::follower_handler(
     boost::asio::ip::tcp::socket socket(io);
     auto ep = resolver.resolve(addr, port);
 
-    while (channel.is_open()) {
-        auto variant = co_await channel.read();
+    while (rx.is_open()) {
+        auto variant = co_await rx.read();
 
         boost::system::error_code err_code;
         boost::asio::async_connect(
@@ -194,6 +195,8 @@ boost::cobalt::task<void> Replica::follower_handler(
         auto n = co_await socket.async_read_some(
             boost::asio::buffer(reply_char), boost::cobalt::use_task);
         auto reply = deserialize<Replica::ReplyVariant>(string(reply_char));
+
+        co_await tx.write(reply);
     }
 }
 
@@ -205,83 +208,39 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
-    boost::asio::steady_timer cancel{io};
-    cancel.expires_after(
-        std::chrono::milliseconds(1000)); /* TODO: block forever */
+    // boost::asio::steady_timer cancel{io};
+    // cancel.expires_after(
+    //     std::chrono::milliseconds(1000)); /* TODO: block forever */
 
-    auto rx_coro = boost::cobalt::spawn(
-        io, rx_connection<Replica::Leader>(acceptor, cancel),
-        boost::cobalt::use_task);
+    // auto rx_coro = boost::cobalt::spawn(
+    //     io, rx_connection<Replica::Leader>(acceptor, cancel),
+    //     boost::cobalt::use_task);
 
-    auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
-        boost::system::error_code ec;
-        co_await cancel.async_wait(
-            boost::asio::redirect_error(boost::cobalt::use_task, ec));
-    };
+    // auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
+    //     boost::system::error_code ec;
+    //     co_await cancel.async_wait(
+    //         boost::asio::redirect_error(boost::cobalt::use_task, ec));
+    // };
 
-    while (true) {
-        /* wait for heartbeat timeout */
-        /* TODO: randomized timeout? */
-        bool stepping_down = false;
-        auto nx = co_await boost::cobalt::race(timeout(150), wait_for_cancel());
-        switch (nx.index()) {
-        case 0: {
-            /* TODO: heartbeat - establish authority */
+    vector<boost::cobalt::channel<Replica::RequestVariant>> rx(
+        impl.cluster.size());
 
-            AppendEntryReq req = {};
-            req.term = pstate.currentTerm;
-            req.leaderId = impl.my_addr;
+    vector<boost::cobalt::channel<Replica::ReplyVariant>> tx(
+        impl.cluster.size());
 
-            if (pstate.logs.empty()) {
-                req.prevLogIndex = 0;
-                req.prevLogTerm = 0;
-            } else {
-                req.prevLogIndex = pstate.logs.size() - 1;
-                req.prevLogTerm = pstate.logs.back().first;
-            }
-            req.leaderCommit = vstate.commitIndex;
-
-            /* req.entry not populated for heartbeat */
-
-            vector<boost::cobalt::task<Replica::AppendEntryReply>> reqs;
-            for (auto peer_addr : impl.cluster) {
-                if (peer_addr != impl.my_addr) {
-                    reqs.push_back(replicate_log(peer_addr, req));
-                }
-            }
-
-            /* wait for responses */
-            auto rv = co_await boost::cobalt::gather(std::move(reqs));
-
-            // auto replies = get<0>(rv);
-            // int highest_term = 0;
-            // for (auto& reply_variant : replies) {
-            //     auto [term, success] = reply_variant.value();
-            //     highest_term = max(highest_term, term);
-            // }
-
-            // auto reqs = serialize(Replica::RequestVariant(req));
-            // co_await boost::asio::async_write(
-            //     socket, boost::asio::buffer(reqs.c_str(), reqs.size()),
-            //     boost::cobalt::use_task);
-
-        } break;
-        case 1: {
-            /* stepping down */
-            stepping_down = true;
-        } break;
-        }
-
-        if (stepping_down) {
-            break;
+    for (auto k = 0; k < impl.cluster.size(); ++k) {
+        auto peer_addr = impl.cluster[k];
+        if (peer_addr != impl.my_addr) {
+            boost::cobalt::spawn(io, follower_handler(peer_addr, rx[k], tx[k]),
+                                 boost::cobalt::use_task);
         }
     }
 
     /* become a follower after stepping down */
 
     /* wait for rx_connection to complete */
-    cancel.cancel();
-    co_await rx_coro;
+    // cancel.cancel();
+    // co_await rx_coro;
 
     co_return Follower;
 }
