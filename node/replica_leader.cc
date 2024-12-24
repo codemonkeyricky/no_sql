@@ -181,7 +181,8 @@ boost::cobalt::task<void> Replica::follower_handler(
 
         volatile int dummy = 0;
 
-#if 0
+        cout << impl.my_addr << " followe_handler(): sending! " << endl;
+
         boost::system::error_code err_code;
         boost::asio::async_connect(
             socket, ep,
@@ -196,13 +197,16 @@ boost::cobalt::task<void> Replica::follower_handler(
             socket, boost::asio::buffer(req.c_str(), req.size()),
             boost::cobalt::use_task);
 
+        cout << impl.my_addr << " followe_handler(): receiving .. " << endl;
+
         char reply_char[1024] = {};
         auto n = co_await socket.async_read_some(
             boost::asio::buffer(reply_char), boost::cobalt::use_task);
         auto reply = deserialize<Replica::ReplyVariant>(string(reply_char));
 
-        co_await tx.write(reply);
-#endif
+        cout << impl.my_addr << " followe_handler(): received! " << endl;
+
+        co_await tx->write(reply);
     }
 
     co_return;

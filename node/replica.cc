@@ -201,10 +201,15 @@ auto Replica::rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
 
         bool teardown = false;
 
+        cout << impl.my_addr << " rx_connection(): waiting ...  " << endl;
+
         auto nx = co_await boost::cobalt::race(
             acceptor.async_accept(boost::cobalt::use_task), wait_for_cancel());
         switch (nx.index()) {
         case 0: {
+
+            cout << impl.my_addr
+                 << " rx_connection():packet received! reading... " << endl;
 
             auto& socket = get<0>(nx);
 
@@ -213,14 +218,19 @@ auto Replica::rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
                 boost::asio::buffer(data), boost::cobalt::use_task);
             auto req_var = deserialize<Replica::RequestVariant>(string(data));
 
-            auto [state, reply_var] = rx_payload_handler<Candidate>(req_var);
+            auto [state, reply_var] = rx_payload_handler<T>(req_var);
+
+            cout << impl.my_addr << " rx_connection(): sending reply ...  "
+                 << endl;
 
             auto reply_s = serialize(reply_var);
             co_await boost::asio::async_write(
                 socket, boost::asio::buffer(reply_s.c_str(), reply_s.size()),
                 boost::cobalt::use_task);
 
-            if (state != Replica::Leader) {
+            cout << impl.my_addr << " rx_connection(): reply sent! " << endl;
+
+            if (T != Replica::Follower) {
                 /* processing the payload is forcing a step down */
                 teardown = true;
             }
