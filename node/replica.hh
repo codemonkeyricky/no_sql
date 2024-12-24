@@ -334,4 +334,12 @@ class Replica {
 
     boost::cobalt::task<Replica::RequestVoteReply>
     request_vote_from_peer(std::string& peer_addr);
+
+    boost::cobalt::task<Replica::AppendEntryReply>
+
+    replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req);
+
+    boost::cobalt::task<void>
+    follower_handler(std::string& peer_addr,
+                     boost::cobalt::channel<Replica::RequestVariant>& channel);
 };

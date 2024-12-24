@@ -14,8 +14,8 @@ using namespace std;
  *  2. do we need to ask leader to walk backwards in history
  */
 
-static boost::cobalt::task<Replica::AppendEntryReply>
-replicate_log(std::string peer_addr, Replica::AppendEntryReq req) {
+boost::cobalt::task<Replica::AppendEntryReply>
+Replica::replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req) {
 
     auto p = peer_addr.find(":");
     auto addr = peer_addr.substr(0, p);
@@ -159,6 +159,44 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
     }
 }
 
+boost::cobalt::task<void> Replica::follower_handler(
+    string& peer_addr,
+    boost::cobalt::channel<Replica::RequestVariant>& channel) {
+
+    auto io = co_await boost::cobalt::this_coro::executor;
+
+    auto p = peer_addr.find(":");
+    auto addr = peer_addr.substr(0, p);
+    auto port = peer_addr.substr(p + 1);
+
+    boost::asio::ip::tcp::resolver resolver(io);
+    boost::asio::ip::tcp::socket socket(io);
+    auto ep = resolver.resolve(addr, port);
+
+    while (channel.is_open()) {
+        auto variant = co_await channel.read();
+
+        boost::system::error_code err_code;
+        boost::asio::async_connect(
+            socket, ep,
+            [&socket, &err_code](const boost::system::error_code& error,
+                                 const boost::asio::ip::tcp::endpoint&) {
+                err_code = error;
+                // std::cout << "error = " << error << std::endl;
+            });
+
+        auto req = serialize(Replica::RequestVariant(variant));
+        co_await boost::asio::async_write(
+            socket, boost::asio::buffer(req.c_str(), req.size()),
+            boost::cobalt::use_task);
+
+        char reply_char[1024] = {};
+        auto n = co_await socket.async_read_some(
+            boost::asio::buffer(reply_char), boost::cobalt::use_task);
+        auto reply = deserialize<Replica::ReplyVariant>(string(reply_char));
+    }
+}
+
 boost::cobalt::task<Replica::State>
 Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
@@ -205,10 +243,27 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
             /* req.entry not populated for heartbeat */
 
-            auto reqs = serialize(Replica::RequestVariant(req));
-            co_await boost::asio::async_write(
-                socket, boost::asio::buffer(reqs.c_str(), reqs.size()),
-                boost::cobalt::use_task);
+            vector<boost::cobalt::task<Replica::AppendEntryReply>> reqs;
+            for (auto peer_addr : impl.cluster) {
+                if (peer_addr != impl.my_addr) {
+                    reqs.push_back(replicate_log(peer_addr, req));
+                }
+            }
+
+            /* wait for responses */
+            auto rv = co_await boost::cobalt::gather(std::move(reqs));
+
+            // auto replies = get<0>(rv);
+            // int highest_term = 0;
+            // for (auto& reply_variant : replies) {
+            //     auto [term, success] = reply_variant.value();
+            //     highest_term = max(highest_term, term);
+            // }
+
+            // auto reqs = serialize(Replica::RequestVariant(req));
+            // co_await boost::asio::async_write(
+            //     socket, boost::asio::buffer(reqs.c_str(), reqs.size()),
+            //     boost::cobalt::use_task);
 
         } break;
         case 1: {
