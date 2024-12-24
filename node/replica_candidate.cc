@@ -111,72 +111,8 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Candidate>(
 boost::cobalt::task<Replica::State>
 Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
-#if 0
-    auto candidate_rx_payload_handler =
-        [this](const Replica::RequestVariant& variant)
-        -> boost::cobalt::task<void> {
-        switch (variant.index()) {
-        case 0: {
-            /* append entries */
-            auto reply =
-                co_await add_entries<Replica::Candidate>(get<0>(variant));
-        } break;
-        case 1: {
-            // auto req = variant.value();
-            auto reply =
-                co_await request_vote<Replica::Candidate>(get<1>(variant));
-        } break;
-        }
-    };
-
-    impl.state = Candidate;
-
-    rx_payload_handler = [&](const RequestVariant& variant) {
-        /* need to trampoline through a lambda because rx_payload_handler
-         * parameters is missing the implicit "this" argument */
-        return candidate_rx_payload_handler(variant);
-    };
-
-    bool leader = true;
-
-    switch (rv.index()) {
-    case 0: {
-        /* all requests finished */
-        cout << "candidate_campaign(): All request_vote() completed!" << endl;
-        auto replies = get<0>(rv);
-
-        int highest_term = 0;
-        int vote_cnt = 0;
-
-        for (auto& reply_variant : replies) {
-            auto [term, vote] = reply_variant.value();
-            highest_term = max(highest_term, term);
-            vote_cnt += vote;
-        }
-
-        if (highest_term > pstate.currentTerm) {
-            /* someone was elected? */
-            leader = false;
-        } else if (vote_cnt < impl.cluster.size() / 2 + 1) {
-            /* failed to achieve majority vote */
-            leader = false;
-        }
-
-    } break;
-    case 1: {
-        cout << "candidate_campaign(): request_vote() timeout!" << endl;
-        leader = false;
-    } break;
-    }
-
-    if (leader) {
-        /* transition to be a leader */
-        boost::cobalt::spawn(io, leader_fsm(), boost::asio::detached);
-    } else {
-        /* transition to be a follower */
-        boost::cobalt::spawn(io, follower_fsm(), boost::asio::detached);
-    }
-#endif
+    cout << impl.my_addr << " candidate_campaign(): starting campaing... "
+         << endl;
 
     impl.state = Candidate;
     // impl.candidate = {};
@@ -214,7 +150,8 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     switch (rv.index()) {
     case 0: {
         /* all requests finished */
-        cout << "candidate_campaign(): All request_vote() completed!" << endl;
+        cout << impl.my_addr
+             << " candidate_campaign(): All request_vote() completed!" << endl;
         auto replies = get<0>(rv);
 
         int highest_term = 0;
@@ -236,7 +173,8 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     } break;
     case 1: {
-        cout << "candidate_campaign(): request_vote() timeout!" << endl;
+        cout << impl.my_addr << " candidate_campaign(): request_vote() timeout!"
+             << endl;
         /* TODO: if not everyone responded by timeout but we collected votes
          * from majority we are still leader! */
 
