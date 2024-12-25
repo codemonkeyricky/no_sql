@@ -136,6 +136,14 @@ class Replica {
     rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
                   boost::asio::steady_timer& cancel);
 
+    auto rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor,
+                        boost::asio::steady_timer& cancel)
+        -> boost::cobalt::task<void>;
+
+    auto rx_payload_leader(boost::asio::ip::tcp::socket socket,
+                           boost::asio::steady_timer& cancel)
+        -> boost::cobalt::task<void>;
+
   public:
     struct AppendEntryReq {
         int term;
@@ -216,6 +224,8 @@ class Replica {
 
     using ReplyVariant =
         boost::variant2::variant<AppendEntryReply, RequestVoteReply>;
+
+    using RpcVariant = boost::variant2::variant<RequestVariant, ReplyVariant>;
 
     template <State T>
     std::tuple<State, AppendEntryReply> add_entries(const AppendEntryReq& req);
@@ -342,5 +352,5 @@ class Replica {
     boost::cobalt::task<void> follower_handler(
         std::string& peer_addr,
         std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
-        std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx);
+        std::shared_ptr<boost::cobalt::channel<Replica::RpcVariant>> tx);
 };
