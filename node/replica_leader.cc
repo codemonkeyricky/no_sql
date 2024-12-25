@@ -212,6 +212,11 @@ boost::cobalt::task<void> Replica::follower_handler(
     co_return;
 }
 
+static boost::cobalt::task<Replica::ReplyVariant>
+read_proxy(shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> rx) {
+    co_return co_await rx->read();
+}
+
 boost::cobalt::task<Replica::State>
 Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
@@ -232,6 +237,8 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     }
     heartbeat.leaderCommit = vstate.commitIndex;
 
+    vector<boost::cobalt::task<Replica::ReplyVariant>> replies;
+
     for (auto k = 0; k < impl.cluster.size(); ++k) {
         tx.push_back(
             make_shared<boost::cobalt::channel<Replica::RequestVariant>>(8,
@@ -243,8 +250,12 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
             boost::cobalt::spawn(io, follower_handler(peer_addr, tx[k], rx[k]),
                                  boost::asio::detached);
             co_await tx[k]->write(heartbeat);
+
+            replies.push_back(read_proxy(rx[k]));
         }
     }
+
+    co_await boost::cobalt::race(move(replies));
 
     /* block forever */
     boost::asio::steady_timer cancel{io};
