@@ -346,15 +346,17 @@ class Replica {
         std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
         std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx);
 
-    auto rx_conn_leader(
-        boost::asio::ip::tcp::acceptor& acceptor,
-        std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>>& tx,
-        std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>& rx,
-        boost::asio::steady_timer& cancel) -> boost::cobalt::task<void>;
+    using ClientReq = std::tuple<
+        Replica::RequestVariant,
+        std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>>;
+
+    auto rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor,
+                        std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
+                        boost::asio::steady_timer& cancel)
+        -> boost::cobalt::task<void>;
 
     auto rx_payload_leader(
         boost::asio::ip::tcp::socket socket,
-        std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>>& tx,
-        std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>& rx,
+        std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
         boost::asio::steady_timer& cancel) -> boost::cobalt::task<void>;
 };

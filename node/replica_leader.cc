@@ -133,8 +133,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     auto follower_reply =
         std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
-    auto client_req =
-        std::make_shared<cobalt::channel<Replica::RequestVariant>>(8, io);
+    auto client_req = std::make_shared<cobalt::channel<ClientReq>>(8, io);
     auto client_reply =
         std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
@@ -165,8 +164,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     cancel.expires_at(decltype(cancel)::time_point::max());
 
     /* spawn rx_connection handler */
-    cobalt::spawn(io,
-                  rx_conn_leader(acceptor, client_req, client_reply, cancel),
+    cobalt::spawn(io, rx_conn_leader(acceptor, client_req, cancel),
                   asio::detached);
 
     /*
@@ -201,8 +199,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
 auto Replica::rx_conn_leader(
     asio::ip::tcp::acceptor& acceptor,
-    std::shared_ptr<cobalt::channel<Replica::RequestVariant>>& tx,
-    std::shared_ptr<cobalt::channel<Replica::ReplyVariant>>& rx,
+    std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
     asio::steady_timer& cancel) -> cobalt::task<void> {
 
     auto io = co_await boost::cobalt::this_coro::executor;
@@ -224,7 +221,7 @@ auto Replica::rx_conn_leader(
 
             auto& socket = get<0>(nx);
             boost::cobalt::spawn(
-                io, rx_payload_leader(std::move(socket), tx, rx, cancel),
+                io, rx_payload_leader(std::move(socket), tx, cancel),
                 asio::detached);
             // active_tasks.insert(task);
 
@@ -244,9 +241,12 @@ auto Replica::rx_conn_leader(
 
 auto Replica::rx_payload_leader(
     boost::asio::ip::tcp::socket socket,
-    std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>>& tx,
-    std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>& rx,
+    std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
     boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {
+
+    auto io = co_await boost::cobalt::this_coro::executor;
+
+    auto rx = std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
     while (true) {
         /* repeat until socket closure */
@@ -258,7 +258,7 @@ auto Replica::rx_payload_leader(
             auto req_var = deserialize<Replica::RequestVariant>(string(data));
 
             /* write to request and wait for response */
-            co_await tx->write(req_var);
+            co_await tx->write(std::make_tuple(req_var, rx));
             auto reply_var = co_await rx->read();
 
             auto reply_s =
