@@ -109,7 +109,8 @@ boost::cobalt::task<void> Replica::rx_connection<Replica::Candidate>(
 }
 
 boost::cobalt::task<Replica::State>
-Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
+Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor,
+                       boost::asio::ip::tcp::acceptor& acceptor_client) {
 
     cout << impl.my_addr << " candidate_campaign(): starting campaing... "
          << endl;

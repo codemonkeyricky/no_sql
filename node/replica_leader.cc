@@ -121,7 +121,8 @@ read_proxy(std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> rx) {
 }
 
 boost::cobalt::task<Replica::State>
-Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
+Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor,
+                    boost::asio::ip::tcp::acceptor& client_acceptor) {
 
     impl.state = Leader;
     impl.leader = {};
@@ -255,7 +256,7 @@ auto Replica::rx_conn_leader(
 
             auto& socket = get<0>(nx);
             boost::cobalt::spawn(
-                io, rx_payload_leader(std::move(socket), tx, cancel),
+                io, rx_payload_client(std::move(socket), tx, cancel),
                 asio::detached);
             // active_tasks.insert(task);
 
@@ -273,7 +274,7 @@ auto Replica::rx_conn_leader(
     }
 };
 
-auto Replica::rx_payload_leader(
+auto Replica::rx_payload_client(
     boost::asio::ip::tcp::socket socket,
     std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
     boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {
@@ -301,7 +302,7 @@ auto Replica::rx_payload_leader(
             co_await asio::async_write(socket, asio::buffer(reply_s),
                                        cobalt::use_task);
         } catch (std::exception& e) {
-            cout << "rx_payload_leader(): socket closed?" << endl;
+            cout << "rx_payload_client(): socket closed?" << endl;
         }
     }
 

@@ -48,7 +48,8 @@ boost::cobalt::task<void> dummy2() {
 }
 
 boost::cobalt::task<Replica::State>
-Replica::follower_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
+Replica::follower_fsm(boost::asio::ip::tcp::acceptor& acceptor,
+                      boost::asio::ip::tcp::acceptor& client_acceptor) {
 
     impl.state = Follower;
     impl.follower = {};

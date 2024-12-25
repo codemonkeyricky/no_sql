@@ -126,10 +126,14 @@ class Replica {
         co_return;
     }
 
-    boost::cobalt::task<State> candidate_fsm(boost::asio::ip::tcp::acceptor&);
-    boost::cobalt::task<State> leader_fsm(boost::asio::ip::tcp::acceptor&);
-    boost::cobalt::task<State> follower_fsm(boost::asio::ip::tcp::acceptor&);
-    boost::cobalt::task<void> fsm(boost::asio::ip::tcp::acceptor);
+    boost::cobalt::task<State> candidate_fsm(boost::asio::ip::tcp::acceptor&,
+                                             boost::asio::ip::tcp::acceptor&);
+    boost::cobalt::task<State> leader_fsm(boost::asio::ip::tcp::acceptor&,
+                                          boost::asio::ip::tcp::acceptor&);
+    boost::cobalt::task<State> follower_fsm(boost::asio::ip::tcp::acceptor&,
+                                            boost::asio::ip::tcp::acceptor&);
+    boost::cobalt::task<void> fsm(boost::asio::ip::tcp::acceptor,
+                                  boost::asio::ip::tcp::acceptor);
 
     template <State T>
     boost::cobalt::task<void>
@@ -207,8 +211,12 @@ class Replica {
         boost::asio::ip::tcp::acceptor acceptor(
             io, {boost::asio::ip::tcp::v4(), stoi(port)});
 
-        boost::cobalt::spawn(io, fsm(std::move(acceptor)),
-                             boost::asio::detached);
+        boost::asio::ip::tcp::acceptor client_acceptor(
+            io, {boost::asio::ip::tcp::v4(), 6000});
+
+        boost::cobalt::spawn(
+            io, fsm(std::move(acceptor), std::move(client_acceptor)),
+            boost::asio::detached);
     }
 
     using RequestVariant =
@@ -352,12 +360,12 @@ class Replica {
         Replica::RequestVariant,
         std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>>;
 
-    auto rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor,
+    auto rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor_replica,
                         std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
                         boost::asio::steady_timer& cancel)
         -> boost::cobalt::task<void>;
 
-    auto rx_payload_leader(
+    auto rx_payload_client(
         boost::asio::ip::tcp::socket socket,
         std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
         boost::asio::steady_timer& cancel) -> boost::cobalt::task<void>;
