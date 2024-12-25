@@ -59,8 +59,7 @@ Replica::replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req) {
 cobalt::task<void> Replica::follower_handler(
     string& peer_addr,
     std::shared_ptr<cobalt::channel<Replica::RequestVariant>> rx,
-    std::shared_ptr<cobalt::channel<Replica::ReplyVariant>> tx) 
-    {
+    std::shared_ptr<cobalt::channel<Replica::ReplyVariant>> tx) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -129,10 +128,14 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
-    vector<std::shared_ptr<cobalt::channel<Replica::RequestVariant>>> tx;
-    auto rx_req =
+    vector<std::shared_ptr<cobalt::channel<Replica::RequestVariant>>>
+        follower_req;
+    auto follower_reply =
+        std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
+
+    auto client_req =
         std::make_shared<cobalt::channel<Replica::RequestVariant>>(8, io);
-    auto rx_reply =
+    auto client_reply =
         std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
     AppendEntryReq heartbeat = {};
@@ -146,12 +149,14 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     /* spawn follower_handlers */
     for (auto k = 0; k < impl.cluster.size(); ++k) {
-        tx.push_back(
+        follower_req.push_back(
             std::make_shared<cobalt::channel<Replica::RequestVariant>>(8, io));
         auto peer_addr = impl.cluster[k];
         if (peer_addr != impl.my_addr) {
-            cobalt::spawn(io, follower_handler(peer_addr, tx[k], rx_reply),
-                          asio::detached);
+            cobalt::spawn(
+                io,
+                follower_handler(peer_addr, follower_req[k], follower_reply),
+                asio::detached);
         }
     }
 
@@ -160,7 +165,8 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     cancel.expires_at(decltype(cancel)::time_point::max());
 
     /* spawn rx_connection handler */
-    cobalt::spawn(io, rx_conn_leader(acceptor, rx_req, rx_reply, cancel),
+    cobalt::spawn(io,
+                  rx_conn_leader(acceptor, client_req, client_reply, cancel),
                   asio::detached);
 
     /*
@@ -194,10 +200,10 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 }
 
 auto Replica::rx_conn_leader(
-    boost::asio::ip::tcp::acceptor& acceptor,
-    std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>>& tx,
-    std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>& rx,
-    boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {
+    asio::ip::tcp::acceptor& acceptor,
+    std::shared_ptr<cobalt::channel<Replica::RequestVariant>>& tx,
+    std::shared_ptr<cobalt::channel<Replica::ReplyVariant>>& rx,
+    asio::steady_timer& cancel) -> cobalt::task<void> {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
