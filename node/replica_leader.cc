@@ -255,11 +255,26 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
         }
     }
 
-    co_await boost::cobalt::race(move(replies));
-
     /* block forever */
     boost::asio::steady_timer cancel{io};
     cancel.expires_at(decltype(cancel)::time_point::max());
+
+    while (true) {
+        auto rv = co_await boost::cobalt::race(replies);
+        /* Note: rv.first is index into replies I think */
+        auto variant = rv.second;
+        // switch(variant.index())
+        // volatile int dumym = 0;
+        switch (variant.index()) {
+        case 0: {
+            auto r = boost::variant2::get<0>(variant);
+            volatile int dumym = 0;
+        } break;
+        case 1: {
+            volatile int dumym = 0;
+        } break;
+        }
+    }
 
     while (true) {
 
