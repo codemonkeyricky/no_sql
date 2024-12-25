@@ -121,7 +121,7 @@ read_proxy(std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> rx) {
 }
 
 boost::cobalt::task<Replica::State>
-Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor,
+Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                     boost::asio::ip::tcp::acceptor& client_acceptor) {
 
     impl.state = Leader;
@@ -168,7 +168,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor,
     cancel.expires_at(decltype(cancel)::time_point::max());
 
     /* spawn rx_connection handler */
-    cobalt::spawn(io, rx_conn_leader(acceptor, client_req, cancel),
+    cobalt::spawn(io, rx_conn_leader(client_acceptor, client_req, cancel),
                   asio::detached);
 
     while (true) {
@@ -233,7 +233,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor,
 }
 
 auto Replica::rx_conn_leader(
-    asio::ip::tcp::acceptor& acceptor,
+    asio::ip::tcp::acceptor& client_acceptor,
     std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
     asio::steady_timer& cancel) -> cobalt::task<void> {
 
@@ -250,7 +250,8 @@ auto Replica::rx_conn_leader(
         bool teardown = false;
 
         auto nx = co_await boost::cobalt::race(
-            acceptor.async_accept(boost::cobalt::use_task), wait_for_cancel());
+            client_acceptor.async_accept(boost::cobalt::use_task),
+            wait_for_cancel());
         switch (nx.index()) {
         case 0: {
 
