@@ -246,9 +246,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
         }
     }
 
+    /* block forever */
     boost::asio::steady_timer cancel{io};
-    cancel.expires_after(
-        std::chrono::milliseconds(1000)); /* TODO: block forever */
+    cancel.expires_at(decltype(cancel)::time_point::max());
 
     while (true) {
 
@@ -256,23 +256,6 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
         co_await cancel.async_wait(boost::cobalt::use_task);
     }
-
-#if 0
-    for (auto k = 0; k < impl.cluster.size(); ++k) {
-        auto peer_addr = impl.cluster[k];
-        if (peer_addr != impl.my_addr) {
-            co_await tx[k].write(req);
-        }
-    }
-
-    /* become a follower after stepping down */
-    while (true) {
-    }
-
-    /* wait for rx_connection to complete */
-    // cancel.cancel();
-    // co_await rx_coro;
-#endif
 
     co_return Follower;
 }
