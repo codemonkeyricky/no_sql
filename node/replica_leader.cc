@@ -251,6 +251,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
         std::chrono::milliseconds(1000)); /* TODO: block forever */
 
     while (true) {
+
+        auto resp = co_await rx[1]->read();
+
         co_await cancel.async_wait(boost::cobalt::use_task);
     }
 
