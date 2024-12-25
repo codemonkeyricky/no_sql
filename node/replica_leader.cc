@@ -137,6 +137,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     auto client_reply =
         std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
+    auto replica_req =
+        std::make_shared<cobalt::channel<Replica::RequestVariant>>(8, io);
+
     AppendEntryReq heartbeat = {};
     heartbeat.term = pstate.currentTerm;
     heartbeat.leaderId = impl.my_addr;
@@ -166,6 +169,37 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     /* spawn rx_connection handler */
     cobalt::spawn(io, rx_conn_leader(acceptor, client_req, cancel),
                   asio::detached);
+
+    while (true) {
+
+        /* Wait for request from either client or replica group */
+
+        auto nx = co_await race(client_req->read(), replica_req->read());
+        if (nx.index() == 0) {
+
+            /* process one client request at a time */
+
+            /* forward request to all followers */
+            auto [req, pipe] = get<0>(nx);
+
+            /* forward to all followers */
+            int cnt = 0;
+            for (auto& f : follower_req) {
+                co_await f->write(req);
+            }
+
+            /* wait until all followers respond */
+            while (cnt > 0) {
+                auto reply_var = co_await follower_reply->read();
+                if (reply_var.index() == 0) {
+                } else if (reply_var.index() == 1) {
+                }
+            }
+        } else if (nx.index() == 1) {
+        }
+    }
+
+    // auto nx = co_await race(client_req->read(), follower_reply->read());
 
     /*
      * Requirements:

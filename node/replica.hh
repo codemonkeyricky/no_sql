@@ -346,6 +346,8 @@ class Replica {
         std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
         std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx);
 
+    /* TODO: ClientReq isn't actually RequestVariant. RequestVariant is only
+     * used within replica group */
     using ClientReq = std::tuple<
         Replica::RequestVariant,
         std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>>;
