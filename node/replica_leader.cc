@@ -246,6 +246,7 @@ auto Replica::rx_payload_leader(
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
+    /* connections are dynamic - allocate rx channel on the fly */
     auto rx = std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
     while (true) {
