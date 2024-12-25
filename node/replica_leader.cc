@@ -9,6 +9,7 @@
 #include <vector>
 
 using namespace std;
+using namespace boost;
 
 /*
  * two things to decide:
@@ -57,8 +58,8 @@ Replica::replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req) {
 
 boost::cobalt::task<void> Replica::follower_handler(
     string& peer_addr,
-    shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
-    shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx) {
+    std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
+    std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -115,7 +116,7 @@ boost::cobalt::task<void> Replica::follower_handler(
 }
 
 static boost::cobalt::task<Replica::ReplyVariant>
-read_proxy(shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> rx) {
+read_proxy(std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> rx) {
     co_return co_await rx->read();
 }
 
@@ -127,8 +128,8 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
-    vector<shared_ptr<boost::cobalt::channel<Replica::RequestVariant>>> tx;
-    vector<shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>> rx;
+    vector<std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>>> tx;
+    vector<std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>> rx;
 
     AppendEntryReq heartbeat = {};
     heartbeat.term = pstate.currentTerm;
@@ -143,10 +144,11 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
     for (auto k = 0; k < impl.cluster.size(); ++k) {
         tx.push_back(
-            make_shared<boost::cobalt::channel<Replica::RequestVariant>>(8,
-                                                                         io));
+            std::make_shared<boost::cobalt::channel<Replica::RequestVariant>>(
+                8, io));
         rx.push_back(
-            make_shared<boost::cobalt::channel<Replica::ReplyVariant>>(8, io));
+            std::make_shared<boost::cobalt::channel<Replica::ReplyVariant>>(
+                8, io));
         auto peer_addr = impl.cluster[k];
         if (peer_addr != impl.my_addr) {
             boost::cobalt::spawn(io, follower_handler(peer_addr, tx[k], rx[k]),
