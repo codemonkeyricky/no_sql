@@ -55,39 +55,6 @@ Replica::replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req) {
     co_return empty;
 }
 
-boost::cobalt::task<void> Replica::leader_replicate_logs(
-    optional<reference_wrapper<array<string, 2>>> kv) {
-
-    int success_cnt = 0;
-    int highest_term = 0;
-    for (auto& follower : vstate_leader.followers) {
-        Replica::AppendEntryReq req{
-            pstate.currentTerm, "",
-            follower.nextIndex, pstate.logs[follower.nextIndex].first,
-            vstate.commitIndex, kv,
-        };
-
-        auto [term, success] = co_await replicate_log(follower.addr, req);
-        success_cnt += success;
-        highest_term = max(highest_term, term);
-    }
-
-    if (highest_term > pstate.currentTerm) {
-        /* Someone has been elected leader */
-
-        /* TODO: become a follower */
-    } else if (success_cnt >=
-               (vstate_leader.followers.size() + 1 /* leader */) / 2 + 1) {
-        /*
-         * If we have consensus from majority the entry is committe
-         * Majority _must_ be greater than half. In either cluster size of 4
-         * or 5, 3 is required to be majority.
-         */
-
-        co_await apply_logs();
-    }
-}
-
 boost::cobalt::task<void> Replica::follower_handler(
     string& peer_addr,
     shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
@@ -220,4 +187,49 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     }
 
     co_return Follower;
+}
+
+template <>
+boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
+    boost::asio::ip::tcp::acceptor& acceptor,
+    boost::asio::steady_timer& cancel) {
+
+    auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
+        boost::system::error_code ec;
+        co_await cancel.async_wait(
+            boost::asio::redirect_error(boost::cobalt::use_task, ec));
+    };
+
+    auto io = co_await boost::cobalt::this_coro::executor;
+
+    // auto active_tasks = set<boost::cobalt::promise<void>>;
+
+    while (true) {
+
+        bool teardown = false;
+
+        auto nx = co_await boost::cobalt::race(
+            acceptor.async_accept(boost::cobalt::use_task), wait_for_cancel());
+        switch (nx.index()) {
+        case 0: {
+
+            auto& socket = get<0>(nx);
+
+            // auto task = boost::cobalt::spawn(io,
+            // rx_process(std::move(socket)),
+            //                                  boost::cobalt::use_task);
+            // active_tasks.insert(task);
+
+            // task->finally([&]() { active_tasks.erase(task); });
+
+        } break;
+        case 1: {
+            teardown = true;
+        } break;
+        }
+
+        if (teardown) {
+            break;
+        }
+    }
 }
