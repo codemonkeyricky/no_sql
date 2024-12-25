@@ -156,7 +156,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     cancel.expires_at(decltype(cancel)::time_point::max());
 
     /* spawn rx_connection handler */
-    cobalt::spawn(io, rx_conn_leader(acceptor, cancel), asio::detached);
+    cobalt::spawn(io, rx_conn_leader(acceptor, rx, cancel), asio::detached);
 
     /*
      * Requirements:
@@ -188,9 +188,10 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     co_return Follower;
 }
 
-auto Replica::rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor,
-                             boost::asio::steady_timer& cancel)
-    -> boost::cobalt::task<void> {
+auto Replica::rx_conn_leader(
+    boost::asio::ip::tcp::acceptor& acceptor,
+    std::shared_ptr<boost::cobalt::channel<Replica::RpcVariant>>& tx,
+    boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -210,9 +211,9 @@ auto Replica::rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor,
         case 0: {
 
             auto& socket = get<0>(nx);
-            boost::cobalt::spawn(io,
-                                 rx_payload_leader(std::move(socket), cancel),
-                                 asio::detached);
+            boost::cobalt::spawn(
+                io, rx_payload_leader(std::move(socket), tx, cancel),
+                asio::detached);
             // active_tasks.insert(task);
 
             // task->finally([&]() { active_tasks.erase(task); });
@@ -229,6 +230,7 @@ auto Replica::rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor,
     }
 };
 
-auto Replica::rx_payload_leader(boost::asio::ip::tcp::socket socket,
-                                boost::asio::steady_timer& cancel)
-    -> boost::cobalt::task<void> {}
+auto Replica::rx_payload_leader(
+    boost::asio::ip::tcp::socket socket,
+    std::shared_ptr<boost::cobalt::channel<Replica::RpcVariant>>& tx,
+    boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {}

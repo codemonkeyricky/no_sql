@@ -136,14 +136,6 @@ class Replica {
     rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
                   boost::asio::steady_timer& cancel);
 
-    auto rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor,
-                        boost::asio::steady_timer& cancel)
-        -> boost::cobalt::task<void>;
-
-    auto rx_payload_leader(boost::asio::ip::tcp::socket socket,
-                           boost::asio::steady_timer& cancel)
-        -> boost::cobalt::task<void>;
-
   public:
     struct AppendEntryReq {
         int term;
@@ -353,4 +345,14 @@ class Replica {
         std::string& peer_addr,
         std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
         std::shared_ptr<boost::cobalt::channel<Replica::RpcVariant>> tx);
+
+    auto rx_conn_leader(
+        boost::asio::ip::tcp::acceptor& acceptor,
+        std::shared_ptr<boost::cobalt::channel<Replica::RpcVariant>>& tx,
+        boost::asio::steady_timer& cancel) -> boost::cobalt::task<void>;
+
+    auto rx_payload_leader(
+        boost::asio::ip::tcp::socket socket,
+        std::shared_ptr<boost::cobalt::channel<Replica::RpcVariant>>& tx,
+        boost::asio::steady_timer& cancel) -> boost::cobalt::task<void>;
 };
