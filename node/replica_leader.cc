@@ -88,79 +88,6 @@ boost::cobalt::task<void> Replica::leader_replicate_logs(
     }
 }
 
-// template <>
-// auto Replica::rx_payload_handler<Replica::Leader>(
-//     const Replica::RequestVariant& variant)
-//     -> tuple<State, Replica::ReplyVariant> {
-
-//     State s = impl.state;
-//     ReplyVariant rv;
-//     switch (variant.index()) {
-//     case 0: {
-//         /* append entries */
-//         auto [s, reply] = add_entries<Replica::Leader>(get<0>(variant));
-//         rv = ReplyVariant(reply);
-//     } break;
-//     case 1: {
-//         auto [s, reply] = request_vote<Replica::Leader>(get<1>(variant));
-//         rv = ReplyVariant(reply);
-//     } break;
-//     }
-
-//     return {s, rv};
-// };
-
-template <>
-boost::cobalt::task<void> Replica::rx_connection<Replica::Leader>(
-    boost::asio::ip::tcp::acceptor& acceptor,
-    boost::asio::steady_timer& cancel) {
-
-    auto wait_for_cancel = [&]() -> boost::cobalt::task<void> {
-        boost::system::error_code ec;
-        co_await cancel.async_wait(
-            boost::asio::redirect_error(boost::cobalt::use_task, ec));
-    };
-
-    auto io = co_await boost::cobalt::this_coro::executor;
-
-    // auto active_tasks = set<boost::cobalt::promise<void>>;
-
-    set<boost::cobalt::task<void>> active_tasks;
-
-    while (true) {
-
-        bool teardown = false;
-
-        auto nx = co_await boost::cobalt::race(
-            acceptor.async_accept(boost::cobalt::use_task), wait_for_cancel());
-        switch (nx.index()) {
-        case 0: {
-
-            auto& socket = get<0>(nx);
-
-            // auto task = boost::cobalt::spawn(io,
-            // rx_process(std::move(socket)),
-            //                                  boost::cobalt::use_task);
-            // active_tasks.insert(task);
-
-            // task->finally([&]() { active_tasks.erase(task); });
-
-        } break;
-        case 1: {
-            teardown = true;
-        } break;
-        }
-
-        if (teardown) {
-            break;
-        }
-    }
-
-    while (active_tasks.size()) {
-        /* TODO: */
-    }
-}
-
 boost::cobalt::task<void> Replica::follower_handler(
     string& peer_addr,
     shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
@@ -175,6 +102,14 @@ boost::cobalt::task<void> Replica::follower_handler(
     boost::asio::ip::tcp::resolver resolver(io);
     boost::asio::ip::tcp::socket socket(io);
     auto ep = resolver.resolve(addr, port);
+
+    /*
+     *  wait on follower_rx for command, or send heartbeat every 150ms
+     *      1. Send a heartbeat first
+     *      2. Determine where the history aligned
+     *      3. Replay history until follower is caught up
+     *      4. replicate log at runtime as needed
+     */
 
     while (rx->is_open()) {
         auto variant = co_await rx->read();
@@ -259,6 +194,14 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     boost::asio::steady_timer cancel{io};
     cancel.expires_at(decltype(cancel)::time_point::max());
 
+    /*
+     * Requirements:
+     *  1. Relay replicate log command to each follower
+     *      client -> leader_rx -> follower_tx
+     *  2. Become follower if any follower reporting newer term
+     *      follower_tx -> leader_rx
+     */
+
     while (true) {
         auto rv = co_await boost::cobalt::race(replies);
         /* Note: rv.first is index into replies I think */
@@ -274,13 +217,6 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
             volatile int dumym = 0;
         } break;
         }
-    }
-
-    while (true) {
-
-        auto resp = co_await rx[1]->read();
-
-        co_await cancel.async_wait(boost::cobalt::use_task);
     }
 
     co_return Follower;
