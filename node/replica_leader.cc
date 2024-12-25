@@ -59,7 +59,8 @@ Replica::replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req) {
 cobalt::task<void> Replica::follower_handler(
     string& peer_addr,
     std::shared_ptr<cobalt::channel<Replica::RequestVariant>> rx,
-    std::shared_ptr<cobalt::channel<Replica::RpcVariant>> tx) {
+    std::shared_ptr<cobalt::channel<Replica::ReplyVariant>> tx) 
+    {
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -129,7 +130,10 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     auto io = co_await boost::cobalt::this_coro::executor;
 
     vector<std::shared_ptr<cobalt::channel<Replica::RequestVariant>>> tx;
-    auto rx = std::make_shared<cobalt::channel<Replica::RpcVariant>>(8, io);
+    auto rx_req =
+        std::make_shared<cobalt::channel<Replica::RequestVariant>>(8, io);
+    auto rx_reply =
+        std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
     AppendEntryReq heartbeat = {};
     heartbeat.term = pstate.currentTerm;
@@ -146,7 +150,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
             std::make_shared<cobalt::channel<Replica::RequestVariant>>(8, io));
         auto peer_addr = impl.cluster[k];
         if (peer_addr != impl.my_addr) {
-            cobalt::spawn(io, follower_handler(peer_addr, tx[k], rx),
+            cobalt::spawn(io, follower_handler(peer_addr, tx[k], rx_reply),
                           asio::detached);
         }
     }
@@ -156,7 +160,8 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
     cancel.expires_at(decltype(cancel)::time_point::max());
 
     /* spawn rx_connection handler */
-    cobalt::spawn(io, rx_conn_leader(acceptor, rx, cancel), asio::detached);
+    cobalt::spawn(io, rx_conn_leader(acceptor, rx_req, rx_reply, cancel),
+                  asio::detached);
 
     /*
      * Requirements:
@@ -190,7 +195,8 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& acceptor) {
 
 auto Replica::rx_conn_leader(
     boost::asio::ip::tcp::acceptor& acceptor,
-    std::shared_ptr<boost::cobalt::channel<Replica::RpcVariant>>& tx,
+    std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>>& tx,
+    std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>& rx,
     boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {
 
     auto io = co_await boost::cobalt::this_coro::executor;
@@ -212,7 +218,7 @@ auto Replica::rx_conn_leader(
 
             auto& socket = get<0>(nx);
             boost::cobalt::spawn(
-                io, rx_payload_leader(std::move(socket), tx, cancel),
+                io, rx_payload_leader(std::move(socket), tx, rx, cancel),
                 asio::detached);
             // active_tasks.insert(task);
 
@@ -232,5 +238,31 @@ auto Replica::rx_conn_leader(
 
 auto Replica::rx_payload_leader(
     boost::asio::ip::tcp::socket socket,
-    std::shared_ptr<boost::cobalt::channel<Replica::RpcVariant>>& tx,
-    boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {}
+    std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>>& tx,
+    std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>& rx,
+    boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {
+
+    while (true) {
+        /* repeat until socket closure */
+        try {
+            /* get payload */
+            char data[1024] = {};
+            std::size_t n = co_await socket.async_read_some(
+                boost::asio::buffer(data), boost::cobalt::use_task);
+            auto req_var = deserialize<Replica::RequestVariant>(string(data));
+
+            /* write to request and wait for response */
+            co_await tx->write(req_var);
+            auto reply_var = co_await rx->read();
+
+            auto reply_s =
+                serialize<Replica::ReplyVariant>(std::move(reply_var));
+            co_await asio::async_write(socket, asio::buffer(reply_s),
+                                       cobalt::use_task);
+        } catch (std::exception& e) {
+            cout << "rx_payload_leader(): socket closed?" << endl;
+        }
+    }
+
+    co_return;
+}
