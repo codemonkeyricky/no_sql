@@ -213,8 +213,11 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
             auto [req_var, tx] = get<1>(nx);
             if (req_var.index() == 0) {
                 /* append entries */
+                auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit,
+                       entry] = get<0>(req_var);
             } else {
                 /* request vote */
+                // auto [term, vote] = get<1>(req_var);
             }
         }
     }
