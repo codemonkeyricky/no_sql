@@ -210,6 +210,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
              * replica can request appendEntries or requestVote.
              */
 
+            bool become_follower = false;
             auto [req_var, tx] = get<1>(nx);
             if (req_var.index() == 0) {
                 /* append entries */
@@ -221,7 +222,20 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                 assert(term != pstate.currentTerm);
 
                 if (term > pstate.currentTerm) {
+                    become_follower = true;
+
+                    /* TODO: return the *wrong* term force the new leader to try
+                     * again. I thinnk the spec actually wants us to respond as
+                     * follower directly */
+                    AppendEntryReply reply = {pstate.currentTerm, false};
+
+                    co_await tx->write(ReplyVariant(reply));
+
+                    pstate.currentTerm = term;
+                    become_follower = true;
+
                 } else if (term < pstate.currentTerm) {
+                    /* ignore */
                 }
             } else {
                 /* request vote */
