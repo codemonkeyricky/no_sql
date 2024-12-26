@@ -169,11 +169,11 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
     asio::steady_timer cancel{io};
     cancel.expires_at(decltype(cancel)::time_point::max());
 
-    /* spawn rx_connection handler */
+    /* spawn rx client connection handler */
     cobalt::spawn(io, rx_client_conn(client_acceptor, client_req, cancel),
                   asio::detached);
 
-    /* spawn rx_connection handler */
+    /* spawn rx replica connection handler */
     cobalt::spawn(io, rx_replica_conn(replica_acceptor, replica_req, cancel),
                   asio::detached);
 
@@ -241,37 +241,19 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                 /* request vote */
                 // auto [term, vote] = get<1>(req_var);
             }
+
+            if (become_follower) {
+                break;
+            }
         }
     }
 
-    // auto nx = co_await race(client_req->read(), follower_reply->read());
+    cancel.cancel();
 
     /*
-     * Requirements:
-     *  1. Relay replicate log command to each follower
-     *      client -> leader_rx -> follower_tx
-     *  2. Become follower if any follower reporting newer term
-     *      follower_tx -> leader_rx
+     * wait for all coroutines to drain. This includes:
+     * rx client connection(s), rx replica connection(s)
      */
-
-#if 0
-    while (true) {
-        auto rv = co_await boost::cobalt::race(replies);
-        /* Note: rv.first is index into replies I think */
-        auto variant = rv.second;
-        // switch(variant.index())
-        // volatile int dumym = 0;
-        switch (variant.index()) {
-        case 0: {
-            auto r = boost::variant2::get<0>(variant);
-            volatile int dumym = 0;
-        } break;
-        case 1: {
-            volatile int dumym = 0;
-        } break;
-        }
-    }
-#endif
 
     co_return Follower;
 }
