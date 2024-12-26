@@ -364,7 +364,7 @@ class Replica {
         Replica::RequestVariant,
         std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>>;
 
-    auto rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor_replica,
+    auto rx_client_conn(boost::asio::ip::tcp::acceptor& acceptor_replica,
                         std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
                         boost::asio::steady_timer& cancel)
         -> boost::cobalt::task<void>;

@@ -170,7 +170,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
     cancel.expires_at(decltype(cancel)::time_point::max());
 
     /* spawn rx_connection handler */
-    cobalt::spawn(io, rx_conn_leader(client_acceptor, client_req, cancel),
+    cobalt::spawn(io, rx_client_conn(client_acceptor, client_req, cancel),
                   asio::detached);
 
     while (true) {
@@ -239,7 +239,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
     co_return Follower;
 }
 
-auto Replica::rx_conn_leader(
+auto Replica::rx_client_conn(
     asio::ip::tcp::acceptor& client_acceptor,
     std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
     asio::steady_timer& cancel) -> cobalt::task<void> {
