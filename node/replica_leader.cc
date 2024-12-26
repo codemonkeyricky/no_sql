@@ -187,7 +187,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
             /* process one client request at a time */
 
             /* forward request to all followers */
-            auto [req, pipe] = get<0>(nx);
+            auto [req, tx] = get<0>(nx);
 
             /* forward to all followers */
             int cnt = 0;
@@ -195,12 +195,13 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                 co_await f->write(req);
             }
 
-            /* wait until all followers respond */
-            while (cnt > 0) {
+            /* wait until majority respond */
+            while (cnt + 1 < impl.cluster.size() / 2) {
                 auto reply_var = co_await follower_reply->read();
-                if (reply_var.index() == 0) {
-                } else if (reply_var.index() == 1) {
-                }
+                /* only expect appendEntries for now */
+                assert(reply_var.index() == 0);
+
+                // auto reply =
             }
         } else if (nx.index() == 1) {
             /*
@@ -208,6 +209,13 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
              *
              * replica can request appendEntries or requestVote.
              */
+
+            auto [req_var, tx] = get<1>(nx);
+            if (req_var.index() == 0) {
+                /* append entries */
+            } else {
+                /* request vote */
+            }
         }
     }
 
