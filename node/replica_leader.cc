@@ -85,11 +85,9 @@ auto Replica::tx_rx(string& peer_addr, Replica::RequestVariant& variant)
         boost::cobalt::use_task);
 
     char reply_char[1024] = {};
-    auto n = co_await socket.async_read_some(boost::asio::buffer(reply_char),
-                                             boost::cobalt::use_task);
-    auto reply = deserialize<Replica::ReplyVariant>(string(reply_char));
-
-    co_return reply;
+    co_await socket.async_read_some(boost::asio::buffer(reply_char),
+                                    boost::cobalt::use_task);
+    co_return deserialize<Replica::ReplyVariant>(string(reply_char));
 }
 
 cobalt::task<void> Replica::follower_handler(
@@ -138,30 +136,7 @@ cobalt::task<void> Replica::follower_handler(
 
             auto variant = get<0>(nx);
 
-            boost::system::error_code err_code;
-            boost::asio::async_connect(
-                socket, ep,
-                [&socket, &err_code](const boost::system::error_code& error,
-                                     const boost::asio::ip::tcp::endpoint&) {
-                    err_code = error;
-                    // std::cout << "error = " << error << std::endl;
-                });
-
-            auto req = serialize(Replica::RequestVariant(variant));
-            co_await boost::asio::async_write(
-                socket, boost::asio::buffer(req.c_str(), req.size()),
-                boost::cobalt::use_task);
-
-            cout << impl.my_addr << " followe_handler(): receiving .. " << endl;
-
-            char reply_char[1024] = {};
-            auto n = co_await socket.async_read_some(
-                boost::asio::buffer(reply_char), boost::cobalt::use_task);
-            auto reply = deserialize<Replica::ReplyVariant>(string(reply_char));
-
-            cout << impl.my_addr << " followe_handler(): received! " << endl;
-
-            co_await tx->write(reply);
+            co_await tx->write(co_await tx_rx(peer_addr, variant));
         }
     }
 
