@@ -283,7 +283,7 @@ auto Replica::rx_client_conn(
 
             auto& socket = get<0>(nx);
             boost::cobalt::spawn(
-                io, rx_payload_client(std::move(socket), tx, cancel),
+                io, rx_client_payload(std::move(socket), tx, cancel),
                 asio::detached);
             // active_tasks.insert(task);
 
@@ -301,7 +301,7 @@ auto Replica::rx_client_conn(
     }
 };
 
-auto Replica::rx_payload_client(
+auto Replica::rx_client_payload(
     boost::asio::ip::tcp::socket socket,
     std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
     boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {
@@ -329,7 +329,7 @@ auto Replica::rx_payload_client(
             co_await asio::async_write(socket, asio::buffer(reply_s),
                                        cobalt::use_task);
         } catch (std::exception& e) {
-            cout << "rx_payload_client(): socket closed?" << endl;
+            cout << "rx_client_payload(): socket closed?" << endl;
         }
     }
 

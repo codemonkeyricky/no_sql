@@ -374,7 +374,7 @@ class Replica {
                          boost::asio::steady_timer& cancel)
         -> boost::cobalt::task<void>;
 
-    auto rx_payload_client(
+    auto rx_client_payload(
         boost::asio::ip::tcp::socket socket,
         std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
         boost::asio::steady_timer& cancel) -> boost::cobalt::task<void>;
