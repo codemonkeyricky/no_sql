@@ -352,7 +352,8 @@ class Replica {
     boost::cobalt::task<void> follower_handler(
         std::string& peer_addr,
         std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
-        std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx);
+        std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx,
+        boost::asio::steady_timer& cancel);
 
     /* TODO: ClientReq isn't actually RequestVariant. RequestVariant is only
      * used within replica group */
