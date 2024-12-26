@@ -215,6 +215,14 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                 /* append entries */
                 auto& [term, leaderId, prevLogIndex, prevLogTerm, leaderCommit,
                        entry] = get<0>(req_var);
+
+                /* while we can have more than one leader, they must be on
+                 * different term! */
+                assert(term != pstate.currentTerm);
+
+                if (term > pstate.currentTerm) {
+                } else if (term < pstate.currentTerm) {
+                }
             } else {
                 /* request vote */
                 // auto [term, vote] = get<1>(req_var);
