@@ -360,6 +360,10 @@ class Replica {
         Replica::RequestVariant,
         std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>>;
 
+    using ReplicaReq = std::tuple<
+        Replica::RequestVariant,
+        std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>>;
+
     auto rx_conn_leader(boost::asio::ip::tcp::acceptor& acceptor_replica,
                         std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
                         boost::asio::steady_timer& cancel)

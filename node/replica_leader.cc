@@ -129,17 +129,19 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
+    /* many to one */
     vector<std::shared_ptr<cobalt::channel<Replica::RequestVariant>>>
         follower_req;
     auto follower_reply =
         std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
+    /* one to many*/
     auto client_req = std::make_shared<cobalt::channel<ClientReq>>(8, io);
     auto client_reply =
         std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
-    auto replica_req =
-        std::make_shared<cobalt::channel<Replica::RequestVariant>>(8, io);
+    /* many to one */
+    auto replica_req = std::make_shared<cobalt::channel<ReplicaReq>>(8, io);
 
     AppendEntryReq heartbeat = {};
     heartbeat.term = pstate.currentTerm;
@@ -197,6 +199,11 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                 }
             }
         } else if (nx.index() == 1) {
+            /*
+             * replica request
+             *
+             * replica can request appendEntries or requestVote.
+             */
         }
     }
 
