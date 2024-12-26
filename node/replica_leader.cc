@@ -79,6 +79,15 @@ cobalt::task<void> Replica::follower_handler(
      *      4. replicate log at runtime as needed
      */
 
+    AppendEntryReq heartbeat = {};
+    heartbeat.term = pstate.currentTerm;
+    heartbeat.leaderId = impl.my_addr;
+    if (pstate.logs.size()) {
+        heartbeat.prevLogIndex = pstate.logs.size() - 1;
+        heartbeat.prevLogTerm = pstate.logs.back().first;
+    }
+    heartbeat.leaderCommit = vstate.commitIndex;
+
     while (rx->is_open()) {
         auto variant = co_await rx->read();
 
@@ -142,15 +151,6 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
 
     /* many to one */
     auto replica_req = std::make_shared<cobalt::channel<ReplicaReq>>(8, io);
-
-    AppendEntryReq heartbeat = {};
-    heartbeat.term = pstate.currentTerm;
-    heartbeat.leaderId = impl.my_addr;
-    if (pstate.logs.size()) {
-        heartbeat.prevLogIndex = pstate.logs.size() - 1;
-        heartbeat.prevLogTerm = pstate.logs.back().first;
-    }
-    heartbeat.leaderCommit = vstate.commitIndex;
 
     /* spawn follower_handlers */
     for (auto k = 0; k < impl.cluster.size(); ++k) {
