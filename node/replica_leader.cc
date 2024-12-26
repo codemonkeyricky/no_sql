@@ -173,6 +173,10 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
     cobalt::spawn(io, rx_client_conn(client_acceptor, client_req, cancel),
                   asio::detached);
 
+    /* spawn rx_connection handler */
+    cobalt::spawn(io, rx_replica_conn(replica_acceptor, replica_req, cancel),
+                  asio::detached);
+
     while (true) {
 
         /* Wait for request from either client or replica group */
@@ -314,5 +318,12 @@ auto Replica::rx_payload_client(
         }
     }
 
+    co_return;
+}
+
+auto Replica::rx_replica_conn(
+    boost::asio::ip::tcp::acceptor&,
+    std::shared_ptr<boost::cobalt::channel<ReplicaReq>> tx,
+    boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {
     co_return;
 }
