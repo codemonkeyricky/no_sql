@@ -124,17 +124,20 @@ cobalt::task<void> Replica::follower_handler(
     heartbeat.leaderCommit = vstate.commitIndex;
 
     asio::steady_timer keep_alive{io};
-    keep_alive.expires_after(std::chrono::milliseconds(100));
 
     while (rx->is_open()) {
+
+        keep_alive.expires_after(std::chrono::milliseconds(100));
         auto nx = co_await race(rx->read(),
-                                keep_alive.async_wait(boost::cobalt::use_task));
+                                keep_alive.async_wait(boost::cobalt::use_task),
+                                cancel.async_wait(boost::cobalt::use_task));
         if (nx.index() == 0) {
-            volatile int dummy = 0;
-
-            cout << impl.my_addr << " followe_handler(): sending! " << endl;
-
+            /* leader issues command */
             co_await tx->write(co_await send_rpc(peer_addr, get<0>(nx)));
+        } else if (nx.index() == 1) {
+            /* heartbeat */
+        } else if (nx.index() == 2) {
+            /* tearing down */
         }
     }
 
