@@ -123,9 +123,21 @@ cobalt::task<void> Replica::follower_handler(
     }
     heartbeat.leaderCommit = vstate.commitIndex;
 
+    /* catching the replica up to speed */
+    while (true) {
+        auto reply_variant =
+            co_await send_rpc(peer_addr, RequestVariant() = {heartbeat});
+
+        auto [term, success] = get<0>(reply_variant);
+    }
+
+    /* manages the connection, including heartbeat and catching the replica
+     * up to speed */
+
     asio::steady_timer keep_alive{io};
 
     while (rx->is_open()) {
+        ReplyVariant reply_var;
 
         keep_alive.expires_after(std::chrono::milliseconds(100));
         auto nx = co_await race(rx->read(),
@@ -136,8 +148,11 @@ cobalt::task<void> Replica::follower_handler(
             co_await tx->write(co_await send_rpc(peer_addr, get<0>(nx)));
         } else if (nx.index() == 1) {
             /* heartbeat */
+            co_await tx->write(
+                co_await send_rpc(peer_addr, RequestVariant() = {heartbeat}));
         } else if (nx.index() == 2) {
             /* tearing down */
+            break;
         }
     }
 
