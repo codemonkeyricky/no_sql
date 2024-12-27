@@ -57,7 +57,7 @@ Replica::replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req) {
     co_return empty;
 }
 
-auto Replica::tx_rx(string& peer_addr, Replica::RequestVariant& variant)
+auto Replica::send_rpc(string& peer_addr, Replica::RequestVariant& variant)
     -> cobalt::task<Replica::ReplyVariant> {
 
     auto io = co_await boost::cobalt::this_coro::executor;
@@ -134,9 +134,7 @@ cobalt::task<void> Replica::follower_handler(
 
             cout << impl.my_addr << " followe_handler(): sending! " << endl;
 
-            auto variant = get<0>(nx);
-
-            co_await tx->write(co_await tx_rx(peer_addr, variant));
+            co_await tx->write(co_await send_rpc(peer_addr, get<0>(nx)));
         }
     }
 
@@ -171,9 +169,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
     /* many to one */
     auto replica_req = std::make_shared<cobalt::channel<ReplicaReq>>(8, io);
 
-    /* block forever */
+    /* cancel interrupt */
     asio::steady_timer cancel{io};
-    cancel.expires_at(decltype(cancel)::time_point::max());
+    cancel.expires_at(decltype(cancel)::time_point::max()); /* block forever */
 
     /* spawn follower_handlers */
     for (auto k = 0; k < impl.cluster.size(); ++k) {

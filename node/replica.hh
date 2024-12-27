@@ -380,6 +380,6 @@ class Replica {
         std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
         boost::asio::steady_timer& cancel) -> boost::cobalt::task<void>;
 
-    auto tx_rx(std::string& peer,
+    auto send_rpc(std::string& peer,
                RequestVariant& variant) -> boost::cobalt::task<ReplyVariant>;
 };
