@@ -66,10 +66,8 @@ cobalt::task<void> Replica::follower_handler(
     AppendEntryReq heartbeat = {};
     heartbeat.term = pstate.currentTerm;
     heartbeat.leaderId = impl.replica_addr;
-    if (pstate.logs.size()) {
-        heartbeat.prevLogIndex = pstate.logs.size() - 1;
-        heartbeat.prevLogTerm = pstate.logs.back().term;
-    }
+    heartbeat.prevLogIndex = pstate.logs.size() - 1;
+    heartbeat.prevLogTerm = pstate.logs.size() ? pstate.logs.back().term : -1;
     heartbeat.leaderCommit = vstate.commitIndex;
 
     int matchIndex;
@@ -151,12 +149,20 @@ cobalt::task<void> Replica::follower_handler(
     if (!(co_await getCommonAncestor())) {
         /* TODO: common ancestor must exist - error means the follower became a
          * leader. revert back to follower */
+        assert(0);
     }
+
+    cout << impl.replica_addr << "-" << peer_addr
+         << ": follower_handler(): common ancestor identified!" << endl;
 
     if (!co_await replayHistory()) {
         /* TODO: error likely means the follower became a
          * leader. revert back to follower */
+        assert(0);
     }
+
+    cout << impl.replica_addr << "-" << peer_addr
+         << ": follower_handler(): history replay complete!" << endl;
 
     matchIndex = heartbeat.prevLogIndex;
     nextIndex = heartbeat.prevLogIndex + 1;
@@ -174,10 +180,18 @@ cobalt::task<void> Replica::follower_handler(
                                 keep_alive.async_wait(boost::cobalt::use_task),
                                 cancel.async_wait(boost::cobalt::use_task));
         if (nx.index() == 0) {
+            assert(0);
             /* leader issues command */
             co_await tx->write(co_await send_rpc(peer_addr, get<0>(nx)));
         } else if (nx.index() == 1) {
+
+            cout << impl.replica_addr << "-" << peer_addr
+                 << ": follower_handler() heartbeat!" << endl;
+
             /* heartbeat */
+
+            /* TODO: tx is blocking - not serviced after filled */
+
             co_await tx->write(
                 co_await send_rpc(peer_addr, RequestVariant() = {heartbeat}));
         } else if (nx.index() == 2) {
@@ -185,6 +199,8 @@ cobalt::task<void> Replica::follower_handler(
             break;
         }
     }
+
+    assert(0);
 
     co_return;
 }
@@ -241,9 +257,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
 
         /* Wait for request from either client or replica group */
 
-        auto nx = co_await race(client_req->read(), replica_req->read());
+        auto nx = co_await race(client_req->read(), replica_req->read(),
+                                follower_reply->read());
         if (nx.index() == 0) {
-
             /* process one client request at a time */
 
             /* forward request to all followers */

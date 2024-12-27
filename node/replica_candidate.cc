@@ -118,6 +118,9 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor,
     impl.state = Candidate;
     // impl.candidate = {};
 
+    /* campaign for the next term */
+    ++pstate.currentTerm;
+
     auto io = co_await boost::cobalt::this_coro::executor;
 
     boost::asio::steady_timer cancel{io};
@@ -174,8 +177,8 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor,
 
     } break;
     case 1: {
-        cout << impl.replica_addr << " candidate_campaign(): request_vote() timeout!"
-             << endl;
+        cout << impl.replica_addr
+             << " candidate_campaign(): request_vote() timeout!" << endl;
         /* TODO: if not everyone responded by timeout but we collected votes
          * from majority we are still leader! */
 
