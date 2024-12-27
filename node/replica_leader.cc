@@ -119,7 +119,7 @@ cobalt::task<void> Replica::follower_handler(
     heartbeat.leaderId = impl.my_addr;
     if (pstate.logs.size()) {
         heartbeat.prevLogIndex = pstate.logs.size() - 1;
-        heartbeat.prevLogTerm = pstate.logs.back().first;
+        heartbeat.prevLogTerm = pstate.logs.back().term;
     }
     heartbeat.leaderCommit = vstate.commitIndex;
 
@@ -129,6 +129,37 @@ cobalt::task<void> Replica::follower_handler(
             co_await send_rpc(peer_addr, RequestVariant() = {heartbeat});
 
         auto [term, success] = get<0>(reply_variant);
+        if (term > pstate.currentTerm) {
+            /* TODO: become a follower */
+        } else if (term < pstate.currentTerm) {
+            /* peer is either higher or same - lower is implementation fault */
+            assert(0);
+        } else {
+            if (success) {
+                /* found matching history */
+                break;
+            } else {
+                if (heartbeat.prevLogIndex >= 0) {
+                    heartbeat.prevLogTerm =
+                        pstate.logs[--heartbeat.prevLogIndex].term;
+                } else {
+                    /* peer still disagree without any logs - implementation
+                     * fault */
+                    assert(0);
+                }
+            }
+        }
+    }
+
+    auto matchIndex = heartbeat.prevLogIndex;
+    auto nextIndex = heartbeat.prevLogIndex + 1;
+
+    /* replay until catch up */
+    AppendEntryReq replay = heartbeat;
+    while (nextIndex < pstate.logs.size()) {
+
+        // replay.entry = pstate.logs[nextIndex];
+        // co_await send_rpc(peer_addr, RequestVariant() = {heartbeat});
     }
 
     /* manages the connection, including heartbeat and catching the replica

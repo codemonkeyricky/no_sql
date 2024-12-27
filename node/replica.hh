@@ -26,11 +26,6 @@
 #include <boost/serialization/array.hpp>
 #include <boost/serialization/optional.hpp>
 #include <boost/serialization/variant.hpp>
-// #include <boost/exception/diagnostic_information.hpp>
-// #include <boost/serialization/map.hpp>
-// #include <boost/serialization/set.hpp>
-// #include <boost/serialization/vector.hpp>
-// #include <boost/variant2/variant.hpp>
 
 class Replica {
   public:
@@ -43,15 +38,26 @@ class Replica {
   private:
     /* Raft protocol requirement */
 
+    struct Log {
+        int term;
+        std::array<std::string, 2> kv;
+
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & term;
+            ar & kv;
+        }
+    };
+
     struct PersistentState {
         int currentTerm = 0;
         std::optional<std::string> votedFor =
             {}; /* TODO: clear on a new term! */
                 /* TODO: update to std::string */
-        /* it's possible to have *not* voted for anyone. eg. if a new leader is
-         * established while we were offline, we would accept leader as is. */
-        std::vector<std::pair<int, std::array<std::string, 2>>>
-            logs; /* term / (key, value)*/
+        /* it's possible to have *not* voted for anyone. eg. if a new leader
+         * is established while we were offline, we would accept leader as
+         * is. */
+        std::vector<Log> logs;
     };
 
     struct VolatileState {
@@ -147,7 +153,7 @@ class Replica {
         int prevLogIndex;
         int prevLogTerm;
         int leaderCommit;
-        std::optional<std::array<std::string, 2>> entry; /* key / value*/
+        std::optional<Log> entry; /* key / value*/
 
         template <class Archive>
         void serialize(Archive& ar, const unsigned int version) {
@@ -381,5 +387,5 @@ class Replica {
         boost::asio::steady_timer& cancel) -> boost::cobalt::task<void>;
 
     auto send_rpc(std::string& peer,
-               RequestVariant& variant) -> boost::cobalt::task<ReplyVariant>;
+                  RequestVariant& variant) -> boost::cobalt::task<ReplyVariant>;
 };

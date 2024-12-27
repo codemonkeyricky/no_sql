@@ -34,7 +34,7 @@ Replica::request_vote_from_peer(std::string& peer_addr) {
     req.term = pstate.currentTerm;
     req.lastLogIndex = pstate.logs.size() - 1;
     if (pstate.logs.size()) {
-        req.lastLogTerm = pstate.logs.back().first;
+        req.lastLogTerm = pstate.logs.back().term;
     } else {
         req.lastLogTerm = -1;
     }

@@ -16,12 +16,12 @@ bool Replica::at_least_as_up_to_date_as_me(int peer_last_log_index,
     if (pstate.logs.empty()) {
         /* peer can only be same or more recent */
         return true;
-    } else if (pstate.logs.back().first < peer_last_log_term) {
+    } else if (pstate.logs.back().term < peer_last_log_term) {
         /* my log isn't recent */
         return true;
     }
 
-    else if (pstate.logs.back().first > peer_last_log_term) {
+    else if (pstate.logs.back().term > peer_last_log_term) {
         return false;
     }
 

@@ -72,10 +72,10 @@ auto Replica::request_vote(const Replica::RequestVoteReq& req)
     if (pstate.logs.empty()) {
         /* our log is empty... candidate must be as up to date */
         grant = true;
-    } else if (pstate.logs.back().first < lastLogTerm) {
+    } else if (pstate.logs.back().term < lastLogTerm) {
         /* candidate has logs from later terms */
         grant = true;
-    } else if (pstate.logs.back().first == lastLogTerm &&
+    } else if (pstate.logs.back().term == lastLogTerm &&
                lastLogIndex + 1 >= pstate.logs.size()) {
         /* candidate have logs from the same term */
         grant = true;
@@ -142,7 +142,7 @@ auto Replica::add_entries(const Replica::AppendEntryReq& req)
     if (pstate.logs.size() == peerLogSize) {
         if (pstate.logs.empty()) {
             accept = true;
-        } else if (pstate.logs.back().first == prevLogTerm) {
+        } else if (pstate.logs.back().term == prevLogTerm) {
             accept = true;
         }
     } else if (pstate.logs.size() > peerLogSize) {
@@ -150,7 +150,7 @@ auto Replica::add_entries(const Replica::AppendEntryReq& req)
         pstate.logs.resize(peerLogSize);
         if (peerLogSize == 0) {
             accept = true;
-        } else if (pstate.logs[prevLogIndex].first == prevLogTerm) {
+        } else if (pstate.logs[prevLogIndex].term == prevLogTerm) {
             accept = true;
         } else {
             /* reject and force leader to wallk backwards */
