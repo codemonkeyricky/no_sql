@@ -241,7 +241,9 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
 
         /* Wait for request from either client or replica group */
 
-        auto nx = co_await race(client_req->read(), replica_req->read());
+        auto nx = co_await race(client_req->read(), replica_req->read(),
+                                follower_reply->read());
+
         if (nx.index() == 0) {
 
             /* process one client request at a time */
@@ -305,6 +307,8 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
             if (become_follower) {
                 break;
             }
+        } else {
+            assert(0);
         }
     }
 
