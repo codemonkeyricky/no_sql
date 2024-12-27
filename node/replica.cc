@@ -4,6 +4,7 @@
 #include <optional>
 
 using namespace std;
+using namespace boost;
 
 template <Replica::State T>
 auto Replica::rx_payload_handler(const Replica::RequestVariant& variant)
@@ -246,4 +247,37 @@ auto Replica::rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
             break;
         }
     }
+}
+
+auto Replica::send_rpc(string& peer_addr, Replica::RequestVariant& variant)
+    -> cobalt::task<Replica::ReplyVariant> {
+
+    auto io = co_await boost::cobalt::this_coro::executor;
+
+    auto p = peer_addr.find(":");
+    auto addr = peer_addr.substr(0, p);
+    auto port = peer_addr.substr(p + 1);
+
+    boost::asio::ip::tcp::resolver resolver(io);
+    boost::asio::ip::tcp::socket socket(io);
+    auto ep = resolver.resolve(addr, port);
+
+    boost::system::error_code err_code;
+    boost::asio::async_connect(
+        socket, ep,
+        [&socket, &err_code](const boost::system::error_code& error,
+                             const boost::asio::ip::tcp::endpoint&) {
+            err_code = error;
+            // std::cout << "error = " << error << std::endl;
+        });
+
+    auto req = serialize(Replica::RequestVariant(variant));
+    co_await boost::asio::async_write(
+        socket, boost::asio::buffer(req.c_str(), req.size()),
+        boost::cobalt::use_task);
+
+    char reply_char[1024] = {};
+    co_await socket.async_read_some(boost::asio::buffer(reply_char),
+                                    boost::cobalt::use_task);
+    co_return deserialize<Replica::ReplyVariant>(string(reply_char));
 }
