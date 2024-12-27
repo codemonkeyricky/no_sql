@@ -189,11 +189,6 @@ cobalt::task<void> Replica::follower_handler(
     co_return;
 }
 
-static boost::cobalt::task<Replica::ReplyVariant>
-read_proxy(std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> rx) {
-    co_return co_await rx->read();
-}
-
 boost::cobalt::task<Replica::State>
 Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                     boost::asio::ip::tcp::acceptor& client_acceptor) {
