@@ -65,7 +65,7 @@ cobalt::task<void> Replica::follower_handler(
 
     AppendEntryReq heartbeat = {};
     heartbeat.term = pstate.currentTerm;
-    heartbeat.leaderId = impl.my_addr;
+    heartbeat.leaderId = impl.replica_addr;
     if (pstate.logs.size()) {
         heartbeat.prevLogIndex = pstate.logs.size() - 1;
         heartbeat.prevLogTerm = pstate.logs.back().term;
@@ -221,7 +221,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
         follower_req.push_back(
             std::make_shared<cobalt::channel<Replica::RequestVariant>>(8, io));
         auto peer_addr = impl.cluster[k];
-        if (peer_addr != impl.my_addr) {
+        if (peer_addr != impl.replica_addr) {
             cobalt::spawn(io,
                           follower_handler(peer_addr, follower_req[k],
                                            follower_reply, cancel),

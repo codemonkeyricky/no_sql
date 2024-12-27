@@ -92,7 +92,8 @@ class Replica {
 
     struct Implementation {
         State state = Follower;
-        std::string my_addr;
+        std::string replica_addr;
+        std::string client_addr;
         std::vector<std::string> cluster;
 
         LeaderImpl leader;
@@ -203,25 +204,29 @@ class Replica {
         }
     };
 
-    Replica(const std::string& addr, const std::vector<std::string>& cluster) {
-        impl.my_addr = addr;
+    Replica(const std::string& replica_addr, const std::string& client_addr,
+            const std::vector<std::string>& cluster) {
+        impl.replica_addr = replica_addr;
+        impl.client_addr = client_addr;
         impl.cluster = cluster;
     }
 
     void spawn(boost::asio::io_context& io) {
 
-        auto p = impl.my_addr.find(":");
-        auto addr = impl.my_addr.substr(0, p);
-        auto port = impl.my_addr.substr(p + 1);
+        auto p = impl.replica_addr.find(":");
+        auto replica_port = impl.replica_addr.substr(p + 1);
 
-        boost::asio::ip::tcp::acceptor acceptor(
-            io, {boost::asio::ip::tcp::v4(), stoi(port)});
+        p = impl.client_addr.find(":");
+        auto client_port = impl.client_addr.substr(p + 1);
+
+        boost::asio::ip::tcp::acceptor replica_acceptor(
+            io, {boost::asio::ip::tcp::v4(), stoi(replica_port)});
 
         boost::asio::ip::tcp::acceptor client_acceptor(
-            io, {boost::asio::ip::tcp::v4(), 6000});
+            io, {boost::asio::ip::tcp::v4(), stoi(client_port)});
 
         boost::cobalt::spawn(
-            io, fsm(std::move(acceptor), std::move(client_acceptor)),
+            io, fsm(std::move(replica_acceptor), std::move(client_acceptor)),
             boost::asio::detached);
     }
 
@@ -275,7 +280,7 @@ class Replica {
 
     //     auto io = co_await boost::cobalt::this_coro::executor;
 
-    //     /* TODO: extract port from my_addr */
+    //     /* TODO: extract port from replica_addr */
     //     boost::asio::ip::tcp::acceptor acceptor(
     //         io, {boost::asio::ip::tcp::v4(), 5555});
 

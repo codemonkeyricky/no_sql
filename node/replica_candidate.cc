@@ -30,7 +30,7 @@ Replica::request_vote_from_peer(std::string& peer_addr) {
 
     Replica::RequestVariant reqv = {};
     RequestVoteReq req = {};
-    req.candidateId = impl.my_addr;
+    req.candidateId = impl.replica_addr;
     req.term = pstate.currentTerm;
     req.lastLogIndex = pstate.logs.size() - 1;
     if (pstate.logs.size()) {
@@ -112,7 +112,7 @@ boost::cobalt::task<Replica::State>
 Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor,
                        boost::asio::ip::tcp::acceptor& acceptor_client) {
 
-    cout << impl.my_addr << " candidate_campaign(): starting campaing... "
+    cout << impl.replica_addr << " candidate_campaign(): starting campaing... "
          << endl;
 
     impl.state = Candidate;
@@ -137,7 +137,7 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor,
     vector<boost::cobalt::task<Replica::RequestVoteReply>> reqs;
 
     for (auto peer_addr : impl.cluster) {
-        if (peer_addr != impl.my_addr) {
+        if (peer_addr != impl.replica_addr) {
             reqs.push_back(request_vote_from_peer(peer_addr));
         }
     }
@@ -151,7 +151,7 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor,
     switch (rv.index()) {
     case 0: {
         /* all requests finished */
-        cout << impl.my_addr
+        cout << impl.replica_addr
              << " candidate_campaign(): All request_vote() completed!" << endl;
         auto replies = get<0>(rv);
 
@@ -174,7 +174,7 @@ Replica::candidate_fsm(boost::asio::ip::tcp::acceptor& acceptor,
 
     } break;
     case 1: {
-        cout << impl.my_addr << " candidate_campaign(): request_vote() timeout!"
+        cout << impl.replica_addr << " candidate_campaign(): request_vote() timeout!"
              << endl;
         /* TODO: if not everyone responded by timeout but we collected votes
          * from majority we are still leader! */

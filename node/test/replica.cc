@@ -46,8 +46,8 @@ int main() {
 
     vector<string> cluster = {"127.0.0.1:5555", "127.0.0.1:5556"};
 
-    Replica r0(cluster[0], cluster);
-    Replica r1(cluster[1], cluster);
+    Replica r0(cluster[0], "127.0.0.1:6000", cluster);
+    Replica r1(cluster[1], "127.0.0.1:6001", cluster);
 
     boost::asio::io_context io(1);
 
