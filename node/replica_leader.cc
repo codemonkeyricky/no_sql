@@ -158,8 +158,17 @@ cobalt::task<void> Replica::follower_handler(
     AppendEntryReq replay = heartbeat;
     while (nextIndex < pstate.logs.size()) {
 
-        // replay.entry = pstate.logs[nextIndex];
-        // co_await send_rpc(peer_addr, RequestVariant() = {heartbeat});
+        replay.prevLogIndex = nextIndex - 1;
+        replay.prevLogTerm = pstate.logs[nextIndex - 1].term;
+        replay.entry = pstate.logs[nextIndex];
+
+        auto reply_variant =
+            co_await send_rpc(peer_addr, RequestVariant() = {heartbeat});
+        auto [term, success] = get<0>(reply_variant);
+
+        /* TODO: I think the only way this can fail is if follower become new
+         * leader? */
+        assert(success);
     }
 
     /* manages the connection, including heartbeat and catching the replica
