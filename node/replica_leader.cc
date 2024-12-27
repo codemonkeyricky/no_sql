@@ -96,6 +96,73 @@ cobalt::task<void> Replica::follower_handler(
     std::shared_ptr<cobalt::channel<Replica::ReplyVariant>> tx,
     asio::steady_timer& cancel) {
 
+    AppendEntryReq heartbeat = {};
+    heartbeat.term = pstate.currentTerm;
+    heartbeat.leaderId = impl.my_addr;
+    if (pstate.logs.size()) {
+        heartbeat.prevLogIndex = pstate.logs.size() - 1;
+        heartbeat.prevLogTerm = pstate.logs.back().term;
+    }
+    heartbeat.leaderCommit = vstate.commitIndex;
+
+    int matchIndex;
+    int nextIndex;
+
+    auto getCommonAncestor = [&]() -> cobalt::task<bool> {
+        /* catching the replica up to speed */
+        while (true) {
+            auto reply_variant =
+                co_await send_rpc(peer_addr, RequestVariant() = {heartbeat});
+
+            auto [term, success] = get<0>(reply_variant);
+            if (term > pstate.currentTerm) {
+                co_return false;
+            } else if (term < pstate.currentTerm) {
+                /* peer is either higher or same - lower is implementation fault
+                 */
+                assert(0);
+            } else {
+                if (success) {
+                    /* found matching history */
+                    co_return true;
+                } else {
+                    if (heartbeat.prevLogIndex >= 0) {
+                        heartbeat.prevLogTerm =
+                            pstate.logs[--heartbeat.prevLogIndex].term;
+                    } else {
+                        /* peer still disagree without any logs - implementation
+                         * fault */
+                        assert(0);
+                    }
+                }
+            }
+        }
+    };
+
+    auto replayHistory = [&]() -> cobalt::task<bool> {
+        /* replay until catch up */
+        AppendEntryReq replay = heartbeat;
+        while (nextIndex < pstate.logs.size()) {
+
+            replay.prevLogIndex = nextIndex - 1;
+            replay.prevLogTerm = pstate.logs[nextIndex - 1].term;
+            replay.entry = pstate.logs[nextIndex];
+
+            auto reply_variant =
+                co_await send_rpc(peer_addr, RequestVariant() = {heartbeat});
+            auto [term, success] = get<0>(reply_variant);
+            if (success) {
+                matchIndex = nextIndex++;
+            }
+
+            /* TODO: I think the only way this can fail is if follower become
+             * new leader? */
+            assert(success);
+        }
+
+        co_return true;
+    };
+
     auto io = co_await boost::cobalt::this_coro::executor;
 
     auto p = peer_addr.find(":");
@@ -114,62 +181,16 @@ cobalt::task<void> Replica::follower_handler(
      *      4. replicate log at runtime as needed
      */
 
-    AppendEntryReq heartbeat = {};
-    heartbeat.term = pstate.currentTerm;
-    heartbeat.leaderId = impl.my_addr;
-    if (pstate.logs.size()) {
-        heartbeat.prevLogIndex = pstate.logs.size() - 1;
-        heartbeat.prevLogTerm = pstate.logs.back().term;
-    }
-    heartbeat.leaderCommit = vstate.commitIndex;
-
-    /* catching the replica up to speed */
-    while (true) {
-        auto reply_variant =
-            co_await send_rpc(peer_addr, RequestVariant() = {heartbeat});
-
-        auto [term, success] = get<0>(reply_variant);
-        if (term > pstate.currentTerm) {
-            /* TODO: become a follower */
-        } else if (term < pstate.currentTerm) {
-            /* peer is either higher or same - lower is implementation fault */
-            assert(0);
-        } else {
-            if (success) {
-                /* found matching history */
-                break;
-            } else {
-                if (heartbeat.prevLogIndex >= 0) {
-                    heartbeat.prevLogTerm =
-                        pstate.logs[--heartbeat.prevLogIndex].term;
-                } else {
-                    /* peer still disagree without any logs - implementation
-                     * fault */
-                    assert(0);
-                }
-            }
-        }
+    if (!(co_await getCommonAncestor())) {
+        /* TODO: common ancestor must exist - error means the follower became a
+         * leader. revert back to follower */
     }
 
-    auto matchIndex = heartbeat.prevLogIndex;
-    auto nextIndex = heartbeat.prevLogIndex + 1;
-
-    /* replay until catch up */
-    AppendEntryReq replay = heartbeat;
-    while (nextIndex < pstate.logs.size()) {
-
-        replay.prevLogIndex = nextIndex - 1;
-        replay.prevLogTerm = pstate.logs[nextIndex - 1].term;
-        replay.entry = pstate.logs[nextIndex];
-
-        auto reply_variant =
-            co_await send_rpc(peer_addr, RequestVariant() = {heartbeat});
-        auto [term, success] = get<0>(reply_variant);
-
-        /* TODO: I think the only way this can fail is if follower become new
-         * leader? */
-        assert(success);
+    if (!co_await replayHistory()) {
     }
+
+    matchIndex = heartbeat.prevLogIndex;
+    nextIndex = heartbeat.prevLogIndex + 1;
 
     /* manages the connection, including heartbeat and catching the replica
      * up to speed */
