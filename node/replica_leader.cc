@@ -189,8 +189,13 @@ cobalt::task<void> Replica::follower_handler(
                 append_req.prevLogTerm = pstate.logs[nextIndex - 1].term;
             }
             append_req.entry = {pstate.currentTerm, {write_req.k, write_req.v}};
-
-            co_await tx->write(co_await send_rpc(peer_addr, append_req));
+            auto reply_var = co_await send_rpc(peer_addr, append_req);
+            auto reply = get<0>(reply_var);
+            if (reply.term > pstate.currentTerm) {
+                /* peer has higher term */
+                co_await tx->write(reply);
+                break;
+            }
         } else if (nx.index() == 1) {
             /* heartbeat */
             auto var = RequestVariant(heartbeat);
