@@ -179,7 +179,15 @@ cobalt::task<void> Replica::follower_handler(
             auto req_var = get<0>(nx);
             auto append_req = get<0>(req_var);
 
-            co_await tx->write(co_await send_rpc(peer_addr, get<0>(nx)));
+            append_req.term = pstate.currentTerm;
+            append_req.leaderId = impl.replica_addr;
+            append_req.prevLogIndex = nextIndex - 1;
+            append_req.prevLogTerm = 0;
+            if (nextIndex - 1 > 0) {
+                append_req.prevLogTerm = pstate.logs[nextIndex - 1].term;
+            }
+
+            co_await tx->write(co_await send_rpc(peer_addr, append_req));
         } else if (nx.index() == 1) {
             /* heartbeat */
             auto var = RequestVariant(heartbeat);

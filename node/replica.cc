@@ -230,7 +230,8 @@ auto Replica::rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
                 socket, boost::asio::buffer(reply_s.c_str(), reply_s.size()),
                 boost::cobalt::use_task);
 
-            cout << impl.replica_addr << " rx_connection(): reply sent! " << endl;
+            cout << impl.replica_addr << " rx_connection(): reply sent! "
+                 << endl;
 
             if (T != Replica::Follower) {
                 /* processing the payload is forcing a step down */
@@ -249,7 +250,8 @@ auto Replica::rx_connection(boost::asio::ip::tcp::acceptor& acceptor,
     }
 }
 
-auto Replica::send_rpc(string& peer_addr, Replica::RequestVariant& variant)
+auto Replica::send_rpc(const string& peer_addr,
+                       const Replica::RequestVariant& variant)
     -> cobalt::task<Replica::ReplyVariant> {
 
     auto io = co_await boost::cobalt::this_coro::executor;
