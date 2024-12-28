@@ -66,10 +66,8 @@ cobalt::task<void> Replica::follower_handler(
     AppendEntryReq heartbeat = {};
     heartbeat.term = pstate.currentTerm;
     heartbeat.leaderId = impl.replica_addr;
-    if (pstate.logs.size()) {
-        heartbeat.prevLogIndex = pstate.logs.size() - 1;
-        heartbeat.prevLogTerm = pstate.logs.back().term;
-    }
+    heartbeat.prevLogIndex = pstate.logs.size() - 1;
+    heartbeat.prevLogTerm = pstate.logs.size() ? pstate.logs.back().term : -1;
     heartbeat.leaderCommit = vstate.commitIndex;
 
     int matchIndex;
@@ -178,8 +176,9 @@ cobalt::task<void> Replica::follower_handler(
             co_await tx->write(co_await send_rpc(peer_addr, get<0>(nx)));
         } else if (nx.index() == 1) {
             /* heartbeat */
-            co_await tx->write(
-                co_await send_rpc(peer_addr, RequestVariant() = {heartbeat}));
+            auto var = RequestVariant(heartbeat);
+            auto reply = co_await send_rpc(peer_addr, var);
+            co_await tx->write(reply);
         } else if (nx.index() == 2) {
             /* tearing down */
             break;
@@ -187,6 +186,13 @@ cobalt::task<void> Replica::follower_handler(
     }
 
     co_return;
+}
+
+template <typename T>
+auto proxy_read(std::shared_ptr<cobalt::channel<T>> rx)
+    -> boost::cobalt::task<T> {
+    auto rv = co_await rx->read();
+    co_return rv;
 }
 
 boost::cobalt::task<Replica::State>
@@ -241,9 +247,10 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
 
         /* Wait for request from either client or replica group */
 
-        auto nx = co_await race(client_req->read(), replica_req->read(),
-                                follower_reply->read());
+        auto nx = co_await race(proxy_read(client_req), proxy_read(replica_req),
+                                proxy_read(follower_reply));
 
+#if 0
         if (nx.index() == 0) {
 
             /* process one client request at a time */
@@ -310,6 +317,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
         } else {
             assert(0);
         }
+#endif
     }
 
     cancel.cancel();
