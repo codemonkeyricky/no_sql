@@ -393,4 +393,6 @@ class Replica {
 
     auto send_rpc(std::string& peer,
                   RequestVariant& variant) -> boost::cobalt::task<ReplyVariant>;
+
+    int coro_cnt = 0;
 };

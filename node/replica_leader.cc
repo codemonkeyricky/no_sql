@@ -63,6 +63,8 @@ cobalt::task<void> Replica::follower_handler(
     std::shared_ptr<cobalt::channel<Replica::ReplyVariant>> tx,
     asio::steady_timer& cancel) {
 
+    ++coro_cnt;
+
     AppendEntryReq heartbeat = {};
     heartbeat.term = pstate.currentTerm;
     heartbeat.leaderId = impl.replica_addr;
@@ -177,13 +179,20 @@ cobalt::task<void> Replica::follower_handler(
         } else if (nx.index() == 1) {
             /* heartbeat */
             auto var = RequestVariant(heartbeat);
-            auto reply = co_await send_rpc(peer_addr, var);
-            co_await tx->write(reply);
+            auto reply_var = co_await send_rpc(peer_addr, var);
+            auto reply = get<0>(reply_var);
+            if (reply.term > pstate.currentTerm) {
+                /* peer has higher term */
+                co_await tx->write(reply);
+                break;
+            }
         } else if (nx.index() == 2) {
             /* tearing down */
             break;
         }
     }
+
+    --coro_cnt;
 
     co_return;
 }
@@ -247,10 +256,10 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
 
         /* Wait for request from either client or replica group */
 
-        auto nx = co_await race(proxy_read(client_req), proxy_read(replica_req),
-                                proxy_read(follower_reply));
+        auto nx = co_await cobalt::race(proxy_read(client_req),
+                                        proxy_read(replica_req),
+                                        proxy_read(follower_reply));
 
-#if 0
         if (nx.index() == 0) {
 
             /* process one client request at a time */
@@ -314,13 +323,15 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
             if (become_follower) {
                 break;
             }
-        } else {
+        } else if (nx.index() == 2) {
             assert(0);
         }
-#endif
     }
 
     cancel.cancel();
+    while (coro_cnt > 0) {
+        timeout(10);
+    }
 
     /*
      * wait for all coroutines to drain. This includes:
@@ -334,6 +345,8 @@ auto Replica::rx_client_conn(
     asio::ip::tcp::acceptor& client_acceptor,
     std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
     asio::steady_timer& cancel) -> cobalt::task<void> {
+
+    ++coro_cnt;
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -371,12 +384,16 @@ auto Replica::rx_client_conn(
             break;
         }
     }
+
+    --coro_cnt;
 };
 
 auto Replica::rx_client_payload(
     boost::asio::ip::tcp::socket socket,
     std::shared_ptr<boost::cobalt::channel<ClientReq>> tx,
     boost::asio::steady_timer& cancel) -> boost::cobalt::task<void> {
+
+    ++coro_cnt;
 
     auto io = co_await boost::cobalt::this_coro::executor;
 
@@ -404,6 +421,8 @@ auto Replica::rx_client_payload(
             cout << "rx_client_payload(): socket closed?" << endl;
         }
     }
+
+    --coro_cnt;
 
     co_return;
 }
