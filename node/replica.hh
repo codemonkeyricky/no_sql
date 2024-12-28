@@ -339,14 +339,14 @@ class Replica {
 
     replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req);
 
+    using ClientReqVariant = boost::variant2::variant<ReadReq, WriteReq>;
+    using ClientReplyVariant = boost::variant2::variant<ReadReply, WriteReply>;
+
     boost::cobalt::task<void> follower_handler(
         std::string& peer_addr,
-        std::shared_ptr<boost::cobalt::channel<Replica::RequestVariant>> rx,
+        std::shared_ptr<boost::cobalt::channel<Replica::ClientReqVariant>> rx,
         std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx,
         boost::asio::steady_timer& cancel);
-
-    using ClientReqVariant = std::variant<ReadReq, WriteReq>;
-    using ClientReplyVariant = std::variant<ReadReply, WriteReply>;
 
     using ClientReq =
         std::tuple<ClientReqVariant,

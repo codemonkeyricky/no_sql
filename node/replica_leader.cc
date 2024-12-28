@@ -58,8 +58,7 @@ Replica::replicate_log(std::string& peer_addr, Replica::AppendEntryReq& req) {
 }
 
 cobalt::task<void> Replica::follower_handler(
-    string& peer_addr,
-    std::shared_ptr<cobalt::channel<Replica::RequestVariant>> rx,
+    string& peer_addr, std::shared_ptr<cobalt::channel<ClientReqVariant>> rx,
     std::shared_ptr<cobalt::channel<Replica::ReplyVariant>> tx,
     asio::steady_timer& cancel) {
 
@@ -176,8 +175,12 @@ cobalt::task<void> Replica::follower_handler(
         if (nx.index() == 0) {
             /* leader issues command */
 
+            /* convert ReadReq to AppendEntries RPC */
+
             auto req_var = get<0>(nx);
             auto append_req = get<0>(req_var);
+
+#if 0
 
             append_req.term = pstate.currentTerm;
             append_req.leaderId = impl.replica_addr;
@@ -188,6 +191,7 @@ cobalt::task<void> Replica::follower_handler(
             }
 
             co_await tx->write(co_await send_rpc(peer_addr, append_req));
+#endif
         } else if (nx.index() == 1) {
             /* heartbeat */
             auto var = RequestVariant(heartbeat);
@@ -226,8 +230,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
     auto io = co_await boost::cobalt::this_coro::executor;
 
     /* many to one */
-    vector<std::shared_ptr<cobalt::channel<Replica::RequestVariant>>>
-        follower_req;
+    vector<std::shared_ptr<cobalt::channel<ClientReqVariant>>> follower_req;
     auto follower_reply =
         std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
@@ -246,7 +249,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
     /* spawn follower_handlers */
     for (auto k = 0; k < impl.cluster.size(); ++k) {
         follower_req.push_back(
-            std::make_shared<cobalt::channel<Replica::RequestVariant>>(8, io));
+            std::make_shared<cobalt::channel<ClientReqVariant>>(8, io));
         auto peer_addr = impl.cluster[k];
         if (peer_addr != impl.replica_addr) {
             cobalt::spawn(io,
