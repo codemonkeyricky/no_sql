@@ -175,13 +175,12 @@ cobalt::task<void> Replica::follower_handler(
         if (nx.index() == 0) {
             /* leader issues command */
 
-            /* convert ReadReq to AppendEntries RPC */
+            /* convert WriteReq to AppendEntries RPC */
 
             auto req_var = get<0>(nx);
-            auto append_req = get<0>(req_var);
+            auto write_req = get<1>(req_var);
 
-#if 0
-
+            AppendEntryReq append_req = {};
             append_req.term = pstate.currentTerm;
             append_req.leaderId = impl.replica_addr;
             append_req.prevLogIndex = nextIndex - 1;
@@ -189,9 +188,9 @@ cobalt::task<void> Replica::follower_handler(
             if (nextIndex - 1 > 0) {
                 append_req.prevLogTerm = pstate.logs[nextIndex - 1].term;
             }
+            append_req.entry = {pstate.currentTerm, {write_req.k, write_req.v}};
 
             co_await tx->write(co_await send_rpc(peer_addr, append_req));
-#endif
         } else if (nx.index() == 1) {
             /* heartbeat */
             auto var = RequestVariant(heartbeat);
@@ -289,13 +288,13 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                 auto write_req = get<1>(req);
             }
 
-#if 0
             /* forward to all followers */
             int cnt = 0;
             for (auto& f : follower_req) {
                 co_await f->write(req);
             }
 
+#if 0
             /* wait until majority respond */
             while (cnt + 1 < impl.cluster.size() / 2) {
                 auto reply_var = co_await follower_reply->read();
