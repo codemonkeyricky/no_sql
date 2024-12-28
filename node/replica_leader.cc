@@ -219,7 +219,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
     auto follower_reply =
         std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
 
-    /* one to many*/
+    /* one to many */
     auto client_req = std::make_shared<cobalt::channel<ClientReq>>(8, io);
     auto client_reply =
         std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
