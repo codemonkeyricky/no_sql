@@ -191,11 +191,12 @@ cobalt::task<void> Replica::follower_handler(
             append_req.entry = {pstate.currentTerm, {write_req.k, write_req.v}};
             auto reply_var = co_await send_rpc(peer_addr, append_req);
             auto reply = get<0>(reply_var);
-            if (reply.term > pstate.currentTerm) {
-                /* peer has higher term */
-                co_await tx->write(reply);
-                break;
-            }
+
+            /* always return ack back to leader_fsm - leader needs to count for
+             * majority before applying log */
+
+            co_await tx->write(reply);
+
         } else if (nx.index() == 1) {
             /* heartbeat */
             auto var = RequestVariant(heartbeat);
@@ -291,24 +292,23 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                 /* TODO: service the read */
             } else if (req.index() == 1) {
                 auto write_req = get<1>(req);
-            }
 
-            /* forward to all followers */
-            int cnt = 0;
-            for (auto& f : follower_req) {
-                co_await f->write(req);
-            }
+                /* forward to all followers */
+                int cnt = 0;
+                for (auto& f : follower_req) {
+                    co_await f->write(req);
+                }
 
-#if 0
-            /* wait until majority respond */
-            while (cnt + 1 < impl.cluster.size() / 2) {
-                auto reply_var = co_await follower_reply->read();
-                /* only expect appendEntries for now */
-                assert(reply_var.index() == 0);
+                /* wait until majority respond */
+                while (cnt + 1 < impl.cluster.size() / 2) {
+                    auto reply_var = co_await follower_reply->read();
+                    /* only expect appendEntries for now */
+                    assert(reply_var.index() == 0);
 
-                // auto reply =
+                    pstate.logs.push_back(
+                        {pstate.currentTerm, {write_req.k, write_req.v}});
+                }
             }
-#endif
         } else if (nx.index() == 1) {
             /*
              * replica request
