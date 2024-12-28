@@ -175,6 +175,10 @@ cobalt::task<void> Replica::follower_handler(
                                 cancel.async_wait(boost::cobalt::use_task));
         if (nx.index() == 0) {
             /* leader issues command */
+
+            auto req_var = get<0>(nx);
+            auto append_req = get<0>(req_var);
+
             co_await tx->write(co_await send_rpc(peer_addr, get<0>(nx)));
         } else if (nx.index() == 1) {
             /* heartbeat */
@@ -267,6 +271,14 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
             /* forward request to all followers */
             auto [req, tx] = get<0>(nx);
 
+            if (req.index() == 0) {
+                auto read_req = get<0>(req);
+                /* TODO: service the read */
+            } else if (req.index() == 1) {
+                auto write_req = get<1>(req);
+            }
+
+#if 0
             /* forward to all followers */
             int cnt = 0;
             for (auto& f : follower_req) {
@@ -281,6 +293,7 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
 
                 // auto reply =
             }
+#endif
         } else if (nx.index() == 1) {
             /*
              * replica request
@@ -365,15 +378,10 @@ auto Replica::rx_client_conn(
             wait_for_cancel());
         switch (nx.index()) {
         case 0: {
-
             auto& socket = get<0>(nx);
             boost::cobalt::spawn(
                 io, rx_client_payload(std::move(socket), tx, cancel),
                 asio::detached);
-            // active_tasks.insert(task);
-
-            // task->finally([&]() { active_tasks.erase(task); });
-
         } break;
         case 1: {
             teardown = true;
@@ -398,7 +406,7 @@ auto Replica::rx_client_payload(
     auto io = co_await boost::cobalt::this_coro::executor;
 
     /* connections are dynamic - allocate rx channel on the fly */
-    auto rx = std::make_shared<cobalt::channel<Replica::ReplyVariant>>(8, io);
+    auto rx = std::make_shared<cobalt::channel<ClientReplyVariant>>(8, io);
 
     while (true) {
         /* repeat until socket closure */
@@ -407,14 +415,13 @@ auto Replica::rx_client_payload(
             char data[1024] = {};
             std::size_t n = co_await socket.async_read_some(
                 boost::asio::buffer(data), boost::cobalt::use_task);
-            auto req_var = deserialize<Replica::RequestVariant>(string(data));
+            auto req_var = deserialize<ClientReqVariant>(string(data));
 
             /* write to request and wait for response */
             co_await tx->write(std::make_tuple(req_var, rx));
             auto reply_var = co_await rx->read();
 
-            auto reply_s =
-                serialize<Replica::ReplyVariant>(std::move(reply_var));
+            auto reply_s = serialize<ClientReplyVariant>(std::move(reply_var));
             co_await asio::async_write(socket, asio::buffer(reply_s),
                                        cobalt::use_task);
         } catch (std::exception& e) {

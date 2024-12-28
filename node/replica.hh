@@ -148,6 +148,49 @@ class Replica {
                   boost::asio::steady_timer& cancel);
 
   public:
+    struct ReadReq {
+        std::string k;
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & k;
+        }
+    };
+
+    struct ReadReply {
+        int success;
+        std::optional<std::string> redirect;
+        std::optional<std::string> v;
+
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & success;
+            ar & redirect;
+            ar & v;
+        }
+    };
+
+    struct WriteReq {
+        std::string k;
+        std::string v;
+
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & k;
+            ar & v;
+        }
+    };
+
+    struct WriteReply {
+        int success;
+        std::optional<std::string> redirect;
+
+        template <class Archive>
+        void serialize(Archive& ar, const unsigned int version) {
+            ar & success;
+            ar & redirect;
+        }
+    };
+
     struct AppendEntryReq {
         int term;
         std::string leaderId;
@@ -243,16 +286,6 @@ class Replica {
     template <State T>
     std::tuple<State, RequestVoteReply> request_vote(const RequestVoteReq& req);
 
-    // boost::cobalt::task<AppendEntryReply>
-    // leader_add_entries(const AppendEntryReq& req);
-    // boost::cobalt::task<RequestVoteReply>
-    // leader_request_vote(const RequestVoteReq& req);
-
-    // boost::cobalt::task<AppendEntryReply>
-    // candidate_add_entries(const AppendEntryReq& req);
-    // boost::cobalt::task<RequestVoteReply>
-    // candidate_request_vote(const RequestVoteReq& req);
-
     boost::cobalt::task<void> leader_replicate_logs(
         std::optional<std::reference_wrapper<std::array<std::string, 2>>> kv);
 
@@ -276,63 +309,9 @@ class Replica {
         co_return;
     }
 
-    // boost::cobalt::task<void> rx_conn_acceptor() {
-
-    //     auto io = co_await boost::cobalt::this_coro::executor;
-
-    //     /* TODO: extract port from replica_addr */
-    //     boost::asio::ip::tcp::acceptor acceptor(
-    //         io, {boost::asio::ip::tcp::v4(), 5555});
-
-    //     for (;;) {
-    //         auto socket =
-    //             co_await acceptor.async_accept(boost::cobalt::use_task);
-    //         boost::cobalt::spawn(io, rx_conn_handler(std::move(socket)),
-    //                              boost::asio::detached);
-    //     }
-    // }
-
     template <State T>
     std::tuple<State, Replica::ReplyVariant>
     rx_payload_handler(const RequestVariant&);
-
-#if 0
-    boost::cobalt::task<void>
-    rx_conn_handler(boost::asio::ip::tcp::socket socket) {
-
-        auto io = co_await boost::cobalt::this_coro::executor;
-
-        char data[1024] = {};
-        std::size_t n = co_await socket.async_read_some(
-            boost::asio::buffer(data), boost::cobalt::use_task);
-
-        // AppendEntryReq add_entry_req;
-        // RequestVoteReq req_vote_req;
-
-        RequestVariant var;
-
-        co_await rx_payload_handler(var);
-
-        // #define ADD_ENTRIES 0
-        // #define REQ_VOTE 1
-        //         int payload_type = 0;
-
-        //         switch (impl.state) {
-        //         case Candidate:
-        //             if (payload_type == ADD_ENTRIES) {
-
-        //             } else {
-        //             }
-        //             break;
-        //         case Follower:
-        //         if(payload_type)
-        //             break;
-
-        //         case Leader:
-        //             break;
-        //         }
-    }
-#endif
 
     bool at_least_as_up_to_date_as_me(int peer_last_log_index,
                                       int peer_last_log_term);
@@ -366,11 +345,12 @@ class Replica {
         std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>> tx,
         boost::asio::steady_timer& cancel);
 
-    /* TODO: ClientReq isn't actually RequestVariant. RequestVariant is only
-     * used within replica group */
-    using ClientReq = std::tuple<
-        Replica::RequestVariant,
-        std::shared_ptr<boost::cobalt::channel<Replica::ReplyVariant>>>;
+    using ClientReqVariant = std::variant<ReadReq, WriteReq>;
+    using ClientReplyVariant = std::variant<ReadReply, WriteReply>;
+
+    using ClientReq =
+        std::tuple<ClientReqVariant,
+                   std::shared_ptr<boost::cobalt::channel<ClientReplyVariant>>>;
 
     using ReplicaReq = std::tuple<
         Replica::RequestVariant,
