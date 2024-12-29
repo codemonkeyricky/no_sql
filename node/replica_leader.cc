@@ -222,7 +222,7 @@ template <typename T>
 auto proxy_read(std::shared_ptr<cobalt::channel<T>> rx)
     -> boost::cobalt::task<T> {
 
-    /* 
+    /*
      * The return value here generates a allocation/free mismatch warning, but
      * it's apparently safe:
      * https://github.com/boostorg/cobalt/issues/7
@@ -314,8 +314,16 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                     ++cnt;
                 }
 
+                /* Log entry is now committed */
+                vstate.commitIndex = pstate.logs.size() - 1;
+
                 pstate.logs.push_back(
                     {pstate.currentTerm, {write_req.k, write_req.v}});
+
+                /* TODO: apply entry to local database */
+
+                /* Log entry is now applied */
+                vstate.lastApplied = pstate.logs.size() - 1;
             }
         } else if (nx.index() == 1) {
             /*
