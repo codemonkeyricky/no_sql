@@ -3,6 +3,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
 #include <boost/asio/detached.hpp>
+#include <boost/asio/write.hpp>
 #include <boost/cobalt.hpp>
 
 #include <iostream>
@@ -42,6 +43,73 @@ auto spawn_task = []() -> boost::cobalt::task<void> {
     co_return;
 };
 
+namespace Command {
+
+auto async_connect = [](const string& addr, const string& port)
+    -> boost::cobalt::task<unique_ptr<boost::asio::ip::tcp::socket>> {
+    auto io = co_await boost::cobalt::this_coro::executor;
+    auto socket = unique_ptr<boost::asio::ip::tcp::socket>(
+        new boost::asio::ip::tcp::socket(io));
+    boost::asio::ip::tcp::resolver resolver(io);
+    auto ep = resolver.resolve(addr, port);
+
+    boost::asio::async_connect(*socket, ep,
+                               [](const boost::system::error_code& error,
+                                  const boost::asio::ip::tcp::endpoint&) {});
+
+    co_return move(socket);
+};
+
+auto async_read = [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
+                     const string& key) -> boost::cobalt::task<std::string> {
+    try {
+
+        std::string tx = "r:" + key;
+        co_await boost::asio::async_write(*socket,
+                                          boost::asio::buffer(tx, tx.size()),
+                                          boost::cobalt::use_task);
+
+        char rx[1024] = {};
+        std::size_t n = co_await socket->async_read_some(
+            boost::asio::buffer(rx), boost::cobalt::use_task);
+
+        string rxs(rx);
+        cout << "read received: " << rxs << endl;
+        co_return rxs.substr(rxs.find(":") + 1);
+
+    } catch (boost::system::system_error const& e) {
+        cout << "read error: " << e.what() << endl;
+        co_return "";
+    }
+
+    co_return "";
+};
+
+auto async_write = [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
+                      const string& key,
+                      const string& value) -> boost::cobalt::task<void> {
+    try {
+
+        std::string tx = "w:" + key + "=" + value;
+        co_await boost::asio::async_write(*socket,
+                                          boost::asio::buffer(tx, tx.size()),
+                                          boost::cobalt::use_task);
+
+        char rx[1024] = {};
+        std::size_t n = co_await socket->async_read_some(
+            boost::asio::buffer(rx), boost::cobalt::use_task);
+
+        co_return;
+
+    } catch (boost::system::system_error const& e) {
+        co_return;
+    }
+
+    co_return;
+};
+
+} // namespace Command
+
 int main() {
 
     vector<string> cluster = {"127.0.0.1:5555", "127.0.0.1:5556"};
@@ -56,6 +124,15 @@ int main() {
 
     /* TODO: co_await on a use_task that spawns many detached - hopefully this
      * means the use_task only returns when all detached are complete. */
+
+    boost::cobalt::spawn(
+        io,
+        []() -> boost::cobalt::task<void> {
+            usleep(500 * 1000);
+            auto socket = co_await Command::async_connect("127.0.0.1", "6000");
+            co_await Command::async_write(socket, "k", "v");
+        }(),
+        boost::asio::detached);
 
     // cout << "whatever" << endl;
     // boost::cobalt::spawn(
