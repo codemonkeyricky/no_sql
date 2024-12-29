@@ -85,12 +85,27 @@ auto async_read = [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
     co_return "";
 };
 
+template <typename T> std::string serialize(T&& data) {
+    std::ostringstream oss;
+    boost::archive::text_oarchive oa(oss);
+    oa << data;
+    return oss.str();
+}
+
+template <typename T, typename StringType> T deserialize(StringType&& data) {
+    T rv;
+    std::istringstream iss(data);
+    boost::archive::text_iarchive ia(iss);
+    ia >> rv;
+    return std::move(rv);
+}
+
 auto async_write = [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
-                      const string& key,
-                      const string& value) -> boost::cobalt::task<void> {
+                      const Replica::ClientReqVariant& req)
+    -> boost::cobalt::task<Replica::ClientReplyVariant> {
     try {
 
-        std::string tx = "w:" + key + "=" + value;
+        std::string tx = serialize(req);
         co_await boost::asio::async_write(*socket,
                                           boost::asio::buffer(tx, tx.size()),
                                           boost::cobalt::use_task);
@@ -99,13 +114,14 @@ auto async_write = [](unique_ptr<boost::asio::ip::tcp::socket>& socket,
         std::size_t n = co_await socket->async_read_some(
             boost::asio::buffer(rx), boost::cobalt::use_task);
 
-        co_return;
+        auto reply = deserialize<Replica::ClientReplyVariant>(rx);
+
+        co_return reply;
 
     } catch (boost::system::system_error const& e) {
-        co_return;
     }
 
-    co_return;
+    co_return Replica::ClientReplyVariant();
 };
 
 } // namespace Command
@@ -129,8 +145,12 @@ int main() {
         io,
         []() -> boost::cobalt::task<void> {
             usleep(500 * 1000);
+
             auto socket = co_await Command::async_connect("127.0.0.1", "6000");
-            co_await Command::async_write(socket, "k", "v");
+
+            Replica::WriteReq req = {"k", "v"};
+            co_await Command::async_write(socket,
+                                          Replica::ClientReqVariant(req));
         }(),
         boost::asio::detached);
 

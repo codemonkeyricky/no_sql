@@ -300,14 +300,15 @@ Replica::leader_fsm(boost::asio::ip::tcp::acceptor& replica_acceptor,
                 }
 
                 /* wait until majority respond */
-                while (cnt + 1 < impl.cluster.size() / 2) {
+                while (cnt + 1 < impl.cluster.size() / 2 + 1) {
                     auto reply_var = co_await follower_reply->read();
                     /* only expect appendEntries for now */
                     assert(reply_var.index() == 0);
-
-                    pstate.logs.push_back(
-                        {pstate.currentTerm, {write_req.k, write_req.v}});
+                    ++cnt;
                 }
+
+                pstate.logs.push_back(
+                    {pstate.currentTerm, {write_req.k, write_req.v}});
             }
         } else if (nx.index() == 1) {
             /*
