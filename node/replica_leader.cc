@@ -221,6 +221,13 @@ cobalt::task<void> Replica::follower_handler(
 template <typename T>
 auto proxy_read(std::shared_ptr<cobalt::channel<T>> rx)
     -> boost::cobalt::task<T> {
+
+    /* 
+     * The return value here generates a allocation/free mismatch warning, but
+     * it's apparently safe:
+     * https://github.com/boostorg/cobalt/issues/7
+     */
+
     auto rv = co_await rx->read();
     co_return rv;
 }
