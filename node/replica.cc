@@ -160,6 +160,17 @@ auto Replica::add_entries(const Replica::AppendEntryReq& req)
         /* reject and force leader to wallk backwards */
     }
 
+    if (accept) {
+        /* commit local entries */
+        while (leaderCommit > vstate.commitIndex) {
+            ++vstate.commitIndex;
+
+            /* TODO: commit into database here */
+
+            ++vstate.lastApplied;
+        }
+    }
+
     return {impl.state, {pstate.currentTerm, accept}};
 }
 
